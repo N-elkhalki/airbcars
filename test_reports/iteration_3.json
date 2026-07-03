@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 3 tested the 4 new items on top of the redesigned AIRBCARS booking flow. Backend: 14/14 pytest tests PASS including two new suites — TestCarDetails.test_get_car_details_has_franchise_fee (franchise_fee=500.0 enriched into /api/cars/313) and TestCarsPagination (page/limit/has_more shape correct, page 2 returns fresh ids). Existing coverage for /api/cars filters, /api/car-price 3-day supplement (+40%) vs 5-day no-supplement, /api/bookings real CSRF+session upstream and 422 validation all still pass. Frontend (390x844 mobile viewport): (1) CalendarPicker modal opens, cal-prev/cal-next month navigation works, arbitrary day selectable (verified cal-day-2026-8-20 for pickup and cal-day-2026-8-25 for return, updating both date buttons); (2) Country picker: country-code-btn opens searchable modal with 225 countries, typing 'france' filters and selecting +33 updated the code chip on the booking screen, switching back to +212 also works; (3) Cars tab shows '110 voitures' header and infinite-scroll goes from 20 to 34 rendered cars after scrolling (onEndReached fires additional pages); (4) Franchise line: booking summary contains 'Franchise (caution)' label and the note 'Caution remboursable retenue temporairement, restituée au retour du véhicule sans dommage.' — car.franchise_fee=500 returned by API. Non-blocking: still emits the RN 0.75 shadow*/pointerEvents deprecation warnings on web preview only.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "global styles / expo-image (web preview only)", "issue": "Console warnings: '\"shadow*\" style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking cosmetic RN-Web migration. Reference: multiple StyleSheet.create blocks / expo-image."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_airbcars_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) Migrate any remaining shadow*/pointerEvents style props to boxShadow / style.pointerEvents to silence RN Web warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.get_car_details now enriches upstream response with franchise_fee scraped from booking.php via FRANCHISE_RE — safely wrapped in try/except that returns None on failure, so a broken scrape never breaks car details.",
+    "The extra requests.get to booking.php happens sequentially inside run_in_threadpool for every car-details call. Fine today (<400ms) but consider caching franchise per car_id in-memory or Mongo to avoid duplicate scraping if traffic grows.",
+    "CalendarPicker correctly disables days < minDate and returns startOfDay() dates; min-3-day rule on return date is enforced in booking/[id].tsx onPickup/onReturn.",
+    "cars.tsx loadMore dedupes by id (Set of previous ids) preventing duplicate rows on pagination — good defensive code.",
+    "CountryPicker uses FlatList + useMemo filter → fast search across 225 countries; testIDs are 'country-{code}-{name}' which is unique."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_airbcars_api.py (added TestCarDetails.test_get_car_details_has_franchise_fee + TestCarsPagination class)"
+  ],
+  "success_rate": {"backend": "100% (14/14 pytest passing)", "frontend": "100% of new features tested: CalendarPicker (custom day pickup+return), CountryPicker (search + select +33/+212), infinite scroll (20→34 cars, header shows 110 total), franchise line + note in booking summary."},
+  "seed_data_creation": "One real upstream booking created earlier via test_create_booking_success (kept as evidence). No new seed data this iteration beyond that.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://carrent-mobile-1.preview.emergentagent.com. Backend tests at /app/backend/tests/test_airbcars_api.py cover cars listing+filters, car details (incl. franchise_fee enrichment), pagination shape (page/limit/total/has_more), /api/car-price supplement logic, and real /api/bookings CSRF flow + validation. Frontend booking testIDs: pickup-date-btn, return-date-btn, calendar-pickup/return, cal-prev, cal-next, cal-day-{year}-{month}-{day}, country-code-btn, country-search, country-{code}-{name}, country-close, input-first-name, input-last-name, input-whatsapp, bcity-{City}, confirm-booking-btn, finish-whatsapp-btn, back-home-btn, booking-error. Cars tab uses cars-list + filter-city/cat/trans/fuel-{value} + clear-filters-btn.",
+  "rca_of_issue": "N/A — user-reported bug (date picker cannot select personalised date) is fixed by the custom CalendarPicker which replaces the native @react-native-community/datetimepicker. Verified on web preview: month navigation via cal-prev/cal-next and arbitrary day selection via cal-day-YYYY-M-D both work; return date snaps forward if less than pickup+3 days per onReturn() logic."
+}

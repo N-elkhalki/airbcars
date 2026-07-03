@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
+import { View, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -37,30 +37,66 @@ export default function CarsScreen() {
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     if (params.city !== undefined) setCity(params.city);
     if (params.category !== undefined) setCategory(params.category);
   }, [params.city, params.category]);
 
+  const PAGE_SIZE = 20;
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(false);
       const res = await fetchCars({
-        limit: 50,
+        page: 1,
+        limit: PAGE_SIZE,
         city,
         category,
         transmission,
         fuel_type: fuel,
       });
       setCars(res.cars);
+      setPage(1);
+      setTotal(Number(res.pagination.total) || res.cars.length);
+      setHasMore(!!res.pagination.has_more);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
   }, [city, category, transmission, fuel]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const next = page + 1;
+      const res = await fetchCars({
+        page: next,
+        limit: PAGE_SIZE,
+        city,
+        category,
+        transmission,
+        fuel_type: fuel,
+      });
+      setCars((prev) => {
+        const ids = new Set(prev.map((c) => c.id));
+        return [...prev, ...res.cars.filter((c) => !ids.has(c.id))];
+      });
+      setPage(next);
+      setHasMore(!!res.pagination.has_more);
+    } catch {
+      // keep current list on pagination failure
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, page, city, category, transmission, fuel]);
 
   useEffect(() => {
     load();
@@ -174,6 +210,20 @@ export default function CarsScreen() {
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.4}
+          ListHeaderComponent={
+            <AppText size="sm" color={colors.muted} style={{ marginBottom: spacing.md }}>
+              {total} {t("cars").toLowerCase()}
+            </AppText>
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: spacing.lg }}>
+                <ActivityIndicator color={colors.brand} />
+              </View>
+            ) : null
+          }
         />
       )}
     </View>

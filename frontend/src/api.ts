@@ -21,6 +21,7 @@ export type CarDetails = Car & {
   available_cities: string[];
   description: string;
   images: string[];
+  franchise_fee?: number;
 };
 
 export type CarFilters = {

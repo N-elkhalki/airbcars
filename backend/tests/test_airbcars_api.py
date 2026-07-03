@@ -68,6 +68,41 @@ class TestCarDetails:
         r = api_client.get(f"{base_url}/api/cars/99999999")
         assert r.status_code == 404
 
+    # NEW: franchise_fee enrichment on /api/cars/{id}
+    def test_get_car_details_has_franchise_fee(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/cars/313")
+        assert r.status_code == 200
+        car = r.json().get("car")
+        assert car is not None
+        assert "franchise_fee" in car, "franchise_fee missing from enriched details"
+        assert isinstance(car["franchise_fee"], (int, float))
+        assert car["franchise_fee"] > 0
+
+
+# --- pagination on /api/cars ---
+class TestCarsPagination:
+    def test_pagination_page1(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/cars", params={"page": 1, "limit": 20})
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("success") is True
+        pag = data.get("pagination")
+        assert pag is not None
+        for f in ["total", "page", "has_more"]:
+            assert f in pag, f"pagination missing {f}"
+        assert int(pag["page"]) == 1
+        assert len(data["cars"]) <= 20
+
+    def test_pagination_page2_returns_different_cars(self, api_client, base_url):
+        r1 = api_client.get(f"{base_url}/api/cars", params={"page": 1, "limit": 20})
+        r2 = api_client.get(f"{base_url}/api/cars", params={"page": 2, "limit": 20})
+        assert r1.status_code == 200 and r2.status_code == 200
+        ids1 = {c["id"] for c in r1.json().get("cars", [])}
+        ids2 = {c["id"] for c in r2.json().get("cars", [])}
+        # If has_more on page1 was true we expect page2 to have new ids
+        if r1.json()["pagination"].get("has_more") and ids2:
+            assert ids2 - ids1, "page 2 returned no new car ids"
+
 
 # --- /api/car-price ---
 class TestCarPrice:

@@ -27,6 +27,7 @@ AIRBCARS_PRICE_URL = f"{AIRBCARS_BASE}/api/get_car_price.php"
 AIRBCARS_BOOKINGS_URL = f"{AIRBCARS_BASE}/api/bookings.php"
 AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
+FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -120,6 +121,22 @@ async def get_car_details(car_id: str):
         raise HTTPException(status_code=502, detail="Failed to load car details")
     if not data.get("success"):
         raise HTTPException(status_code=404, detail="Car not found")
+
+    # Enrich with the franchise (security deposit) which the mobile API omits
+    # but the website exposes on booking.php.
+    def _franchise():
+        try:
+            page = requests.get(
+                f"{AIRBCARS_BOOKING_PAGE}?id={car_id}", timeout=15
+            )
+            m = FRANCHISE_RE.search(page.text)
+            return float(m.group(1)) if m else None
+        except Exception:
+            return None
+
+    franchise = await run_in_threadpool(_franchise)
+    if franchise is not None and isinstance(data.get("car"), dict):
+        data["car"]["franchise_fee"] = franchise
     return data
 
 

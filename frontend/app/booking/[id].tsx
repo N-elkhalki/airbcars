@@ -11,15 +11,15 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, shadow, CITIES, WHATSAPP_PHONE } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
 import { fetchCarDetails, fetchCarPrice, createBooking, CarDetails, PriceBreakdown } from "@/src/api";
 import { addBooking } from "@/src/bookingsStore";
 import { AppText, Button, Loading, Chip } from "@/src/components/ui";
-
-const COUNTRY_CODES = ["+212", "+33", "+34", "+32", "+31", "+49", "+44", "+1"];
+import { CalendarPicker } from "@/src/components/CalendarPicker";
+import { CountryPicker } from "@/src/components/CountryPicker";
+import { COUNTRIES } from "@/src/countries";
 
 function iso(d: Date) {
   const y = d.getFullYear();
@@ -51,6 +51,7 @@ export default function BookingScreen() {
     return d;
   });
   const [picker, setPicker] = useState<null | "pickup" | "return">(null);
+  const [countryOpen, setCountryOpen] = useState(false);
   const [city, setCity] = useState<string | undefined>();
 
   const [firstName, setFirstName] = useState("");
@@ -94,6 +95,7 @@ export default function BookingScreen() {
   const dailyBase = parseFloat(car.price);
   const total = price ? price.total_price : dailyBase * days;
   const cities = car.available_cities?.length ? car.available_cities : CITIES;
+  const selectedCountry = COUNTRIES.find((c) => c.code === code) || COUNTRIES[0];
 
   const onPickup = (d: Date) => {
     setPickup(d);
@@ -253,21 +255,14 @@ export default function BookingScreen() {
         </AppText>
 
         {picker && (
-          <DateTimePicker
+          <CalendarPicker
+            visible={!!picker}
             value={picker === "pickup" ? pickup : ret}
-            mode="date"
-            display={Platform.OS === "ios" ? "inline" : "default"}
-            minimumDate={new Date()}
-            onChange={(e, d) => {
-              if (Platform.OS !== "ios") setPicker(null);
-              if (d) (picker === "pickup" ? onPickup(d) : onReturn(d));
-            }}
+            minDate={picker === "pickup" ? new Date() : (() => { const m = new Date(pickup); m.setDate(m.getDate() + 3); return m; })()}
+            onClose={() => setPicker(null)}
+            onSelect={(d) => (picker === "pickup" ? onPickup(d) : onReturn(d))}
+            testID={`calendar-${picker}`}
           />
-        )}
-        {Platform.OS === "ios" && picker && (
-          <Pressable onPress={() => setPicker(null)} style={styles.doneBtn}>
-            <AppText weight="semibold" color={colors.brand}>OK</AppText>
-          </Pressable>
         )}
 
         {/* City */}
@@ -306,22 +301,26 @@ export default function BookingScreen() {
         <AppText size="sm" color={colors.muted} style={{ marginBottom: spacing.sm }}>
           <Ionicons name="logo-whatsapp" size={13} color={colors.whatsapp} /> {t("whatsappNumber")}
         </AppText>
-        <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {COUNTRY_CODES.map((c) => (
-              <Chip key={c} label={c} active={code === c} onPress={() => setCode(c)} testID={`code-${c}`} />
-            ))}
-          </ScrollView>
+        <View style={{ flexDirection: "row", gap: spacing.sm }}>
+          <Pressable
+            testID="country-code-btn"
+            onPress={() => setCountryOpen(true)}
+            style={styles.codeBtn}
+          >
+            <AppText size="lg">{selectedCountry?.emoji}</AppText>
+            <AppText size="lg" weight="medium">{code}</AppText>
+            <Ionicons name="chevron-down" size={16} color={colors.muted} />
+          </Pressable>
+          <TextInput
+            testID="input-whatsapp"
+            placeholder="6XX-XXX-XXX"
+            placeholderTextColor={colors.muted}
+            value={whatsapp}
+            onChangeText={setWhatsapp}
+            keyboardType="phone-pad"
+            style={[styles.input, { flex: 1 }]}
+          />
         </View>
-        <TextInput
-          testID="input-whatsapp"
-          placeholder="6XX-XXX-XXX"
-          placeholderTextColor={colors.muted}
-          value={whatsapp}
-          onChangeText={setWhatsapp}
-          keyboardType="phone-pad"
-          style={styles.input}
-        />
 
         {/* Payment */}
         <AppText weight="medium" style={styles.fieldLabel}>
@@ -364,6 +363,12 @@ export default function BookingScreen() {
               </AppText>
             </View>
           ) : null}
+          {car.franchise_fee ? (
+            <View style={styles.sumRow}>
+              <AppText color={colors.onSurfaceTertiary}>{t("franchise")}</AppText>
+              <AppText weight="medium">{Math.round(car.franchise_fee)} €</AppText>
+            </View>
+          ) : null}
           <View style={styles.sumDivider} />
           <View style={styles.sumRow}>
             <AppText size="lg" weight="semibold">
@@ -374,6 +379,12 @@ export default function BookingScreen() {
             </AppText>
           </View>
         </View>
+
+        {car.franchise_fee ? (
+          <AppText size="sm" color={colors.muted} style={{ marginTop: spacing.sm }}>
+            {t("franchiseNote")}
+          </AppText>
+        ) : null}
 
         {err ? (
           <AppText color={colors.error} style={{ marginTop: spacing.md }} testID="booking-error">
@@ -390,6 +401,13 @@ export default function BookingScreen() {
           testID="confirm-booking-btn"
         />
       </View>
+
+      <CountryPicker
+        visible={countryOpen}
+        selected={code}
+        onClose={() => setCountryOpen(false)}
+        onSelect={setCode}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -426,6 +444,16 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   doneBtn: { alignSelf: "flex-end", padding: spacing.md },
+  codeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    height: 54,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

@@ -191,3 +191,53 @@ class TestBookings:
         }
         r = api_client.post(f"{base_url}/api/bookings", json=payload)
         assert r.status_code == 422
+
+
+
+# --- NEW: /api/featured-cars ---
+class TestFeaturedCars:
+    def test_featured_cars_success_shape(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/featured-cars")
+        assert r.status_code == 200, r.text[:300]
+        data = r.json()
+        assert data.get("success") is True
+        cars = data.get("cars")
+        assert isinstance(cars, list)
+        assert len(cars) > 0, "featured cars list is empty"
+        # each car has expected catalog fields
+        car = cars[0]
+        for f in ["id", "name", "brand", "category", "price"]:
+            assert f in car, f"missing {f} in featured car"
+
+    def test_featured_cars_expected_ids_present(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/featured-cars")
+        assert r.status_code == 200
+        cars = r.json().get("cars", [])
+        ids = [c["id"] for c in cars]
+        # Expect around 12 featured cars from the homepage
+        assert 8 <= len(ids) <= 12, f"expected ~12 featured cars, got {len(ids)}"
+        # At least some of the documented homepage ids should be present
+        expected_ids = {"273", "292", "268", "281", "290", "262", "191", "185", "280", "282", "181", "180"}
+        overlap = expected_ids.intersection(set(ids))
+        assert len(overlap) >= 6, f"expected homepage ids overlap >=6, got {overlap}"
+
+
+# --- NEW: /api/contact ---
+class TestContact:
+    def test_contact_submit_success(self, api_client, base_url):
+        payload = {
+            "name": "TEST_Contact_User",
+            "email": "TEST_contact@example.com",
+            "message": "TEST_This is an automated test message from backend_test.py",
+        }
+        r = api_client.post(f"{base_url}/api/contact", json=payload)
+        assert r.status_code == 200, r.text[:300]
+        data = r.json()
+        assert data.get("success") is True
+        assert "message" in data
+
+    def test_contact_submit_missing_field_returns_422(self, api_client, base_url):
+        # Missing 'message'
+        payload = {"name": "TEST_x", "email": "TEST_x@example.com"}
+        r = api_client.post(f"{base_url}/api/contact", json=payload)
+        assert r.status_code == 422

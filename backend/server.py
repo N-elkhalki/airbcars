@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 import requests
 import re
+import time
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -28,6 +29,10 @@ AIRBCARS_BOOKINGS_URL = f"{AIRBCARS_BASE}/api/bookings.php"
 AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
+FEATURED_ID_RE = re.compile(r'booking\.php\?id=(\d+)')
+
+# Simple in-memory cache for featured car ids scraped from the homepage.
+_featured_cache: dict = {"ids": [], "ts": 0.0}
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -74,10 +79,65 @@ class BookingCreate(BaseModel):
     payment_method: str = "cash"
 
 
+class ContactCreate(BaseModel):
+    name: str
+    email: str
+    message: str
+
+
 # ---------- Routes ----------
 @api_router.get("/")
 async def root():
     return {"message": "AIRBCARS API proxy"}
+
+
+@api_router.get("/featured-cars")
+async def get_featured_cars():
+    """Returns the same featured selection shown on the airbcars.ma homepage,
+    by scraping the featured car IDs from the homepage and enriching them with
+    catalog data from the mobile API."""
+    def _scrape_ids():
+        now = time.time()
+        if _featured_cache["ids"] and now - _featured_cache["ts"] < 600:
+            return _featured_cache["ids"]
+        html = requests.get(AIRBCARS_BASE + "/", timeout=20).text
+        ids: list = []
+        for m in FEATURED_ID_RE.finditer(html):
+            if m.group(1) not in ids:
+                ids.append(m.group(1))
+        ids = ids[:12]
+        if ids:
+            _featured_cache["ids"] = ids
+            _featured_cache["ts"] = now
+        return ids
+
+    try:
+        ids = await run_in_threadpool(_scrape_ids)
+        catalog = await run_in_threadpool(
+            _upstream_get, {"action": "get_cars", "page": 1, "limit": 200}
+        )
+    except Exception as e:
+        logger.error(f"featured-cars upstream error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to load featured cars")
+
+    by_id = {c["id"]: c for c in catalog.get("cars", [])}
+    featured = [by_id[i] for i in ids if i in by_id]
+    if not featured:  # fallback to first catalog cars
+        featured = catalog.get("cars", [])[:8]
+    return {"success": True, "cars": featured}
+
+
+@api_router.post("/contact")
+async def create_contact(contact: ContactCreate):
+    record = {
+        "id": str(uuid.uuid4()),
+        "name": contact.name,
+        "email": contact.email,
+        "message": contact.message,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.contacts.insert_one({**record})
+    return {"success": True, "message": "Message received"}
 
 
 @api_router.get("/cars")

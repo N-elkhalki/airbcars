@@ -6,6 +6,8 @@ import * as Haptics from "expo-haptics";
 import { colors, spacing, radius, WHATSAPP_PHONE } from "@/src/theme";
 import { useI18n, Lang } from "@/src/i18n";
 import { AppText } from "@/src/components/ui";
+import { Logo } from "@/src/components/Logo";
+import { useRouter } from "expo-router";
 
 const LANGS: { code: Lang; label: string }[] = [
   { code: "fr", label: "Français" },
@@ -46,12 +48,16 @@ function Row({
 export default function SettingsScreen() {
   const { t, lang, setLang } = useI18n();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingTop: insets.top + spacing.sm, paddingBottom: 120 }}
     >
+      <View style={styles.brandRow}>
+        <Logo height={26} color={colors.brand} />
+      </View>
       <AppText size="2xl" weight="bold" style={styles.title}>
         {t("settings")}
       </AppText>
@@ -86,6 +92,13 @@ export default function SettingsScreen() {
         {t("contactUs").toUpperCase()}
       </AppText>
       <View style={styles.card}>
+        <Row
+          icon="chatbubble-ellipses-outline"
+          label={t("sendMessage")}
+          testID="settings-contact-form"
+          onPress={() => router.push("/contact")}
+        />
+        <View style={styles.divider} />
         <Row
           icon="logo-whatsapp"
           label="WhatsApp"
@@ -128,6 +141,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surfaceSecondary },
+  brandRow: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   title: { paddingHorizontal: spacing.lg, marginBottom: spacing.lg, color: colors.onSurface },
   groupLabel: {
     paddingHorizontal: spacing.xl,

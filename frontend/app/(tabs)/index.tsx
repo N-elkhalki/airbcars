@@ -13,8 +13,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, CITIES, CATEGORIES } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
-import { fetchCars, Car } from "@/src/api";
+import { fetchFeaturedCars, Car } from "@/src/api";
 import { AppText, CarCard, Chip, Loading, ErrorState } from "@/src/components/ui";
+import { Logo } from "@/src/components/Logo";
 
 const HERO =
   "https://images.unsplash.com/photo-1596061343448-3ebc93432ab7?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
@@ -39,8 +40,8 @@ export default function HomeScreen() {
   const load = useCallback(async () => {
     try {
       setError(false);
-      const res = await fetchCars({ limit: 8 });
-      setCars(res.cars);
+      const cars = await fetchFeaturedCars();
+      setCars(cars);
     } catch {
       setError(true);
     } finally {
@@ -88,10 +89,8 @@ export default function HomeScreen() {
           style={StyleSheet.absoluteFill}
         />
         <View style={[styles.heroContent, { paddingTop: insets.top + spacing.lg }]}>
-          <AppText size="sm" weight="medium" color="rgba(255,255,255,0.8)">
-            {t("appName")}
-          </AppText>
-          <AppText size="3xl" weight="bold" color="#fff" style={{ marginTop: spacing.xs }}>
+          <Logo height={30} color="#FFFFFF" />
+          <AppText size="3xl" weight="bold" color="#fff" style={{ marginTop: spacing.md }}>
             {t("tagline")}
           </AppText>
           <Pressable

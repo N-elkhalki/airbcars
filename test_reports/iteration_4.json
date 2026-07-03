@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 4 covered the 4 new items: (1) NEW backend GET /api/featured-cars — 2 pytest tests PASS: returns {success:true, cars:[...]} with 12 featured cars whose ids overlap the documented homepage set (273/292/268/281/290/262/191/185/280/282/181/180) and each car exposes id/name/brand/category/price. (2) NEW backend POST /api/contact — 2 pytest tests PASS: returns {success:true, message:'Message received'} and 422 for missing 'message' field; record persisted in db.contacts (id, name, email, message, created_at). (3) NEW Contact screen /contact — tapping settings-contact-form on Réglages navigates to /contact; empty submit shows contact-error 'Veuillez remplir tous les champs'; filled submit shows success screen 'Message envoyé !' with contact-back-home button. (4) Home hero renders the react-native-svg AIRBCARS logo in WHITE without any red screen or component error and shows 12 featured car cards from /api/featured-cars; tapping still routes to /car/{id}. Theme: blue primary #2563EB visible on hero button, Réservations tab, active Réglages checkmark, category icons, and 'Retour à l'accueil'. Full pytest suite: 18/18 PASS (added TestFeaturedCars + TestContact classes; all prior regression classes for cars/pagination/car-price/bookings/franchise still green). Non-blocking: same RN-Web '\"shadow*\" style props deprecated' and 'props.pointerEvents deprecated' console warnings as prior iterations — cosmetic only.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "global styles / expo-image (web preview only)", "issue": "Console warnings persist: '\"shadow*\" style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking RN-Web migration warnings — do not affect native builds. Reference: multiple StyleSheet.create blocks."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_airbcars_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) Migrate remaining shadow*/pointerEvents style props to boxShadow / style.pointerEvents to silence RN Web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.get_featured_cars caches scraped homepage ids for 10 min in _featured_cache — good, keeps latency low; fallback to first 8 catalog cars if scraping yields nothing prevents empty Home.",
+    "FEATURED_ID_RE matches 'booking.php?id=NNN' anywhere in HTML — safe because homepage only lists booking links for featured cars; ordering preserved via list-with-dedupe.",
+    "POST /api/contact stores {id, name, email, message, created_at} in db.contacts with a UUID id (no Mongo _id leaked in response). Pydantic ContactCreate enforces non-optional name/email/message → 422 on missing fields (verified).",
+    "Logo.tsx uses react-native-svg primitives (Svg/Polyline/Line/Path/G) with a single color prop driving both stroke and fill — renders correctly white on dark hero and blue (#2563EB) on Settings without crash.",
+    "theme.ts brand switched to #2563EB and brandSecondary #1D4ED8; consistent usage across buttons, active tab, chips, category icons. surfaceInverse (#1E3A8A) is intentionally a darker navy for inverse surfaces — consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_airbcars_api.py (added TestFeaturedCars and TestContact classes — 4 new tests)"
+  ],
+  "success_rate": {"backend": "100% (18/18 pytest passing)", "frontend": "100% of new items tested: hero logo (white SVG) + 12 featured cars on Home, blue theme applied, Settings→/contact navigation, contact validation error, contact success screen with 'Message envoyé !'."},
+  "seed_data_creation": "Two contact records inserted into db.contacts by test_contact_submit_success (TEST_ prefixed) and the UI submit test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://carrent-mobile-1.preview.emergentagent.com. Backend tests at /app/backend/tests/test_airbcars_api.py cover: /api/cars listing+filters, /api/cars/{id} details+franchise, pagination shape, /api/car-price supplement (3-day +40% vs 5-day 0%), real /api/bookings CSRF flow + 422 validation, NEW /api/featured-cars (shape + expected id overlap), NEW /api/contact (success + 422). Frontend testIDs added this iteration: settings-contact-form, contact-back-btn, contact-name, contact-email, contact-message, contact-error, contact-submit-btn, contact-back-home. Existing critical testIDs: home-scroll, hero-explore-btn, view-all-btn, city-{City}, category-{cat}, lang-{fr|en|ar}, settings-whatsapp/call/email, plus all booking-flow testIDs from iteration_3.",
+  "rca_of_issue": "N/A — no bugs surfaced. All 4 new features working end-to-end against the real airbcars.ma upstream (featured-cars scraped 12 ids in homepage order) and Mongo persistence (db.contacts) confirmed."
+}

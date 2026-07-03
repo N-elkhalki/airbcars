@@ -58,6 +58,26 @@ export async function fetchCars(filters: CarFilters = {}): Promise<{
   };
 }
 
+export async function fetchFeaturedCars(): Promise<Car[]> {
+  const res = await fetch(`${BASE}/api/featured-cars`);
+  if (!res.ok) throw new Error("Failed to load featured cars");
+  const data = await res.json();
+  return data.cars || [];
+}
+
+export async function submitContact(payload: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<void> {
+  const res = await fetch(`${BASE}/api/contact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to send message");
+}
+
 export async function fetchCarDetails(id: string): Promise<CarDetails> {
   const res = await fetch(`${BASE}/api/cars/${id}`);
   if (!res.ok) throw new Error("Failed to load car details");

@@ -85,16 +85,16 @@ export const CITIES = [
 // Representative city photos for the visual city selector.
 export const CITY_IMAGES: Record<string, string> = {
   Agadir:
-    "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=600&q=80",
+    "https://airbcars.ma/uploads/bibliotheques/68e437a12eea5_1759786913.webp",
   Casablanca:
-    "https://images.unsplash.com/photo-1577147443647-81856d5151af?w=600&q=80",
-  Fes: "https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=600&q=80",
+    "https://customer-assets.emergentagent.com/job_carrent-mobile-1/artifacts/1ux337vs_casablanca.webp",
+  Fes: "https://customer-assets.emergentagent.com/job_carrent-mobile-1/artifacts/uysspepq_fes.webp",
   Marrakech:
-    "https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=600&q=80",
+    "https://customer-assets.emergentagent.com/job_carrent-mobile-1/artifacts/8foz2zia_Marrakech.webp",
   Rabat:
-    "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=600&q=80",
+    "https://customer-assets.emergentagent.com/job_carrent-mobile-1/artifacts/h9jdl00p_Rabat.webp",
   Tangier:
-    "https://images.unsplash.com/photo-1553913861-c0fddf2619ee?w=600&q=80",
+    "https://customer-assets.emergentagent.com/job_carrent-mobile-1/artifacts/0hsodb5e_Tangier.webp",
 };
 
 export const CATEGORIES = ["economy", "compact", "suv", "luxury", "van"];

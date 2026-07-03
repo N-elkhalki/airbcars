@@ -32,7 +32,12 @@ User owns airbcars.ma (Morocco car rental marketplace) and wants a mobile app fo
 - Settings: FR/EN/AR language switch, contact rows, "Send a message" → Contact form
 - **Contact form** (name/email/message → POST /api/contact, stored in Mongo)
 - **Website blue theme (#2563EB) + official AIRBCARS logo** (react-native-svg) on Home & Settings
-- Verified via testing agent (backend 18/18, all frontend flows green)
+- **Booking Detail screen** (mirrors booking-confirmation.php): tap a reservation → car, reference, PIN, customer name/phone, dates, city, total, live status, Next Steps, WhatsApp CTA
+- **Status-change alerts**: My Bookings refresh detects live status changes and fires a local notification (expo-notifications, native only) + updates the badge in place
+- Verified via testing agent (backend 24/24, all frontend flows green)
+
+## Notes
+- Local status notifications work on native/dev build; web preview is guarded (no-op). True remote/background push would need a build + a server trigger.
 
 ## Backend endpoints (added)
 - `GET /api/featured-cars` (scrapes homepage featured ids + enriches from catalog)

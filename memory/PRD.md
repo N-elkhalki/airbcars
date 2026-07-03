@@ -24,20 +24,24 @@ User owns airbcars.ma (Morocco car rental marketplace) and wants a mobile app fo
 - Browse cars, filter, view details, book (real booking), WhatsApp/phone contact, trilingual, no login.
 
 ## Implemented (2026-06)
-- Home (hero, city chips, category cards, featured cars)
-- Cars listing with sticky filter chip rows (city/category/transmission/fuel)
-- Car details (image carousel, specs, available cities, Book Now + WhatsApp)
-- Booking flow: first/last name, WhatsApp + country code, 3-day min rental, live price breakdown (daily/subtotal/short-term supplement/total), cash payment, real booking → reference + PIN, Finish-on-WhatsApp
-- My Bookings (local AsyncStorage history w/ reference + PIN)
-- Settings: FR/EN/AR language switch, contact rows (WhatsApp/call/email)
-- Verified via testing agent (backend 11/11, frontend flows green)
+- Home (hero with official logo, city chips, category cards, **featured cars matching website homepage**)
+- Cars listing with sticky filter chip rows + pagination/infinite scroll
+- Car details (image carousel, specs, available cities, franchise, Book Now + WhatsApp)
+- Booking flow: first/last name, WhatsApp + searchable country picker (225 countries), custom cross-platform calendar (3-day min), live price breakdown (daily/subtotal/short-term supplement/franchise/total), cash payment, real booking → reference + PIN, Finish-on-WhatsApp
+- My Bookings (local history w/ reference + PIN)
+- Settings: FR/EN/AR language switch, contact rows, "Send a message" → Contact form
+- **Contact form** (name/email/message → POST /api/contact, stored in Mongo)
+- **Website blue theme (#2563EB) + official AIRBCARS logo** (react-native-svg) on Home & Settings
+- Verified via testing agent (backend 18/18, all frontend flows green)
+
+## Backend endpoints (added)
+- `GET /api/featured-cars` (scrapes homepage featured ids + enriches from catalog)
+- `POST /api/contact` (stores request/suggestion)
 
 ## Backlog / Remaining
-- P1: Country-code full searchable picker (currently common codes only)
-- P1: Franchise/deposit line in summary (mobile API doesn't expose franchise_fee)
-- P2: Pull-to-refresh on cars list, pagination/infinite scroll (currently limit 50)
-- P2: Full RTL layout mirroring for Arabic (text alignment done; forceRTL needs app relaunch)
-- P2: Reviews section on car details (website has reviews)
+- P2: Reviews section on car details (website has Google reviews)
+- P2: Full RTL layout mirroring for Arabic (text alignment done; forceRTL needs relaunch)
+- P2: Admin visibility for submitted contact messages
 
 ## Next Tasks
 - Consider searchable country picker and deposit display; add pagination.

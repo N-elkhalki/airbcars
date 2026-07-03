@@ -143,6 +143,8 @@ export default function BookingScreen() {
         car_id: car.id,
         car_name: car.name,
         car_image: car.images?.[0] || car.image_url,
+        customer_name: `${firstName.trim()} ${lastName.trim()}`,
+        customer_phone: `${code} ${whatsapp.trim()}`,
         pickup_date: iso(pickup),
         return_date: iso(ret),
         pickup_city: city,

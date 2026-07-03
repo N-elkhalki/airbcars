@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, StyleSheet, FlatList, RefreshControl } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, Pressable } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
@@ -8,6 +8,7 @@ import { colors, spacing, radius } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
 import { getBookings, updateBookingStatus, LocalBooking } from "@/src/bookingsStore";
 import { fetchBookingStatus } from "@/src/api";
+import { notifyStatusChange } from "@/src/notify";
 import { AppText, Button } from "@/src/components/ui";
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -31,13 +32,20 @@ export default function BookingsScreen() {
         const status = await fetchBookingStatus(b.reference, b.pin_code);
         if (status && status !== b.status) {
           await updateBookingStatus(b.id, status);
+          // Alert the client that their reservation status changed.
+          notifyStatusChange(
+            t("statusUpdated"),
+            t("statusUpdatedBody")
+              .replace("{ref}", b.reference)
+              .replace("{status}", t(status) || status),
+          );
           return { ...b, status };
         }
         return b;
       }),
     );
     setBookings(updated);
-  }, []);
+  }, [t]);
 
   const loadAndRefresh = useCallback(async () => {
     const list = await getBookings();
@@ -95,7 +103,11 @@ export default function BookingsScreen() {
           renderItem={({ item }) => {
             const sc = STATUS_COLORS[item.status] || STATUS_COLORS.pending;
             return (
-              <View style={styles.card} testID={`booking-${item.id}`}>
+              <Pressable
+                style={styles.card}
+                testID={`booking-${item.id}`}
+                onPress={() => router.push(`/booking-detail/${item.id}`)}
+              >
                 <Image source={{ uri: item.car_image }} style={styles.thumb} contentFit="cover" />
                 <View style={{ flex: 1, gap: 4 }}>
                   <AppText weight="semibold" size="lg" numberOfLines={1}>
@@ -131,7 +143,7 @@ export default function BookingsScreen() {
                     ) : null}
                   </View>
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />

@@ -50,6 +50,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="car/[id]" options={{ animation: "slide_from_right" }} />
             <Stack.Screen name="contact" options={{ animation: "slide_from_right" }} />
+            <Stack.Screen name="booking-detail/[id]" options={{ animation: "slide_from_right" }} />
             <Stack.Screen
               name="booking/[id]"
               options={{ animation: "slide_from_bottom", presentation: "modal" }}

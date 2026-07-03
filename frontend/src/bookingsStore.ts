@@ -7,6 +7,8 @@ export type LocalBooking = {
   car_id: string;
   car_name: string;
   car_image?: string;
+  customer_name?: string;
+  customer_phone?: string;
   pickup_date: string;
   return_date: string;
   pickup_city?: string;

@@ -38,6 +38,7 @@ User owns airbcars.ma (Morocco car rental marketplace) and wants a mobile app fo
 - `GET /api/featured-cars` (scrapes homepage featured ids + enriches from catalog)
 - `POST /api/contact` (forwards to airbcars email_endpoint.php type=contact + stores in Mongo)
 - `GET /api/reviews` (scrapes Google reviews from homepage: name/avatar/date/rating/text + average)
+- `GET /api/booking-status?booking_number&pin_code` (reads live reservation status from booking-confirmation.php)
 
 ## Known external issue
 - airbcars.ma `api/email_endpoint.php` currently returns HTTP 500 (their server-side mail config). Contact forwarding therefore returns `forwarded:false`; the app still stores every message in Mongo (`db.contacts`) so nothing is lost — deliveries will flow automatically once their mail server is fixed.

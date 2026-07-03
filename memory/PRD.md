@@ -36,12 +36,17 @@ User owns airbcars.ma (Morocco car rental marketplace) and wants a mobile app fo
 
 ## Backend endpoints (added)
 - `GET /api/featured-cars` (scrapes homepage featured ids + enriches from catalog)
-- `POST /api/contact` (stores request/suggestion)
+- `POST /api/contact` (forwards to airbcars email_endpoint.php type=contact + stores in Mongo)
+- `GET /api/reviews` (scrapes Google reviews from homepage: name/avatar/date/rating/text + average)
+
+## Known external issue
+- airbcars.ma `api/email_endpoint.php` currently returns HTTP 500 (their server-side mail config). Contact forwarding therefore returns `forwarded:false`; the app still stores every message in Mongo (`db.contacts`) so nothing is lost — deliveries will flow automatically once their mail server is fixed.
 
 ## Backlog / Remaining
-- P2: Reviews section on car details (website has Google reviews)
+- P1: Confirm/fix email_endpoint delivery (their side) or add Resend for guaranteed email
 - P2: Full RTL layout mirroring for Arabic (text alignment done; forceRTL needs relaunch)
-- P2: Admin visibility for submitted contact messages
+- P2: Admin view / notification for submitted contact messages
+- P2: Per-car reviews (site table mostly empty; homepage Google reviews shown site-wide)
 
 ## Next Tasks
 - Consider searchable country picker and deposit display; add pagination.

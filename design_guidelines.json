@@ -1,0 +1,179 @@
+{
+  "app_name": "AIRBCARS",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A sleek, premium, and distraction-free mobile booking experience where the cars and the Moroccan landscape take center stage.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#141514",
+    "surfaceSecondary": "#F5F5F5",
+    "onSurfaceSecondary": "#141514",
+    "surfaceTertiary": "#EBEBEB",
+    "onSurfaceTertiary": "#4A4A4A",
+    "surfaceInverse": "#141514",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#141514",
+    "brandPrimary": "#141514",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#333333",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E5E5E5",
+    "onBrandTertiary": "#141514",
+    "success": "#2D6A4F",
+    "onSuccess": "#FFFFFF",
+    "warning": "#B08D57",
+    "onWarning": "#FFFFFF",
+    "error": "#9D2B22",
+    "onError": "#FFFFFF",
+    "info": "#4A4A4A",
+    "onInfo": "#FFFFFF",
+    "border": "#E5E5E5",
+    "borderStrong": "#CCCCCC",
+    "divider": "#F0F0F0"
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous Apple-style margins. Let content breathe. Padding must be intentional and generous around cards and content edges.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use glass on bottom tab bar.",
+      "Use glass on sticky headers when scrolling over images or lists.",
+      "Use glass on the sticky bottom CTA bar on the Car Details screen."
+    ],
+    "dont's": [
+      "Do not use glass for generic list rows or chips.",
+      "Do not use glass if it obscures primary reading text."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "A premium entry point to explore car categories and featured rentals in Moroccan cities.",
+      "states": {
+        "loading": "Centered sleek spinner over white background.",
+        "empty": "No featured cars available currently.",
+        "error": "Unable to load featured inventory. Retry button."
+      },
+      "layout": "Scrollable. Top area: large safe-area padded header with a subtle Hero featured card (using hero_bg image with top-to-bottom gradient scrim). Below hero: 'Select City' horizontal pill-shaped chips (Agadir, Casablanca, etc.). Next section: Category horizontal scroll (Economy, Luxury, SUV). Next: 'Featured Cars' multi-column or horizontal swipeable cards showcasing the car image, name, seats, transmission, and daily rate in EUR."
+    },
+    {
+      "name": "Car Listing",
+      "purpose": "Detailed browsing and filtering of available cars.",
+      "states": {
+        "loading": "Skeleton loaders matching the card shapes.",
+        "empty": "Illustration of an empty road, 'No cars match your filters', and a 'Clear Filters' CTA.",
+        "error": "Failed to load inventory. Retry button."
+      },
+      "layout": "Sticky glass header with horizontal filter chips (Category, Transmission, Fuel, Price). Below: Single-column vertically stacked cards. Each card spans full width (minus lg margins), featuring a prominent car photo (with scrim), title, specs ribbon (icons for seats, fuel, transmission), and price per day. The card behaves as a pressable leading to details."
+    },
+    {
+      "name": "Car Details",
+      "purpose": "Deep dive into a specific car's specs with an immediate path to book or contact via WhatsApp.",
+      "states": {
+        "loading": "Full screen skeleton with image placeholder.",
+        "empty": "N/A",
+        "error": "Failed to load car details. Retry button."
+      },
+      "layout": "Edge-to-edge image carousel at the top with a top-to-bottom gradient scrim for back button contrast. Content below: Car Title, Category pill, Price. A structured grid for specifications (Seats, Fuel, Transmission). 'Available Cities' section. Description text. Sticky glass bottom bar containing 'Book Now' primary CTA alongside a secondary 'Contact WhatsApp' icon button."
+    },
+    {
+      "name": "Booking Flow",
+      "purpose": "Frictionless checkout capturing dates, city, and user details.",
+      "states": {
+        "loading": "Processing booking...",
+        "empty": "N/A",
+        "error": "Unable to complete booking. Please check details."
+      },
+      "layout": "Single scroll vertical stacking. Section 1: Prominent Date range selector. Section 2: Pickup City selector. Section 3: User Details (Name, Email, Phone inputs). Bottom: Concise trip summary card (Rate x Days) and a Sticky Primary CTA 'Confirm Booking'."
+    },
+    {
+      "name": "My Bookings",
+      "purpose": "Local storage-based list of the user's booking history.",
+      "states": {
+        "loading": "Spinner.",
+        "empty": "Icon of keys/car + 'You have no bookings yet. Start exploring.' + CTA.",
+        "error": "Failed to read storage."
+      },
+      "layout": "Simple list of booking cards. Each card displays the Booking Reference, Car Name, Dates, and a status badge (e.g., 'Confirmed')."
+    },
+    {
+      "name": "Settings",
+      "purpose": "App preferences and language toggles.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Clean list rows. Prominent Language Switcher (FR/EN/AR) using segmented control or bottom sheet. Note: Arabic selection must trigger RTL layout."
+    }
+  ],
+  "images": {
+    "hero_bg": {
+      "url": "https://images.unsplash.com/photo-1596061343448-3ebc93432ab7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwyfHxsdXh1cnklMjBjYXIlMjBkcml2aW5nJTIwcm9hZHxlbnwwfHx8fDE3ODMxMTM5NjZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Black Porsche 911 luxury car driving"
+    },
+    "featured_suv": {
+      "url": "https://images.unsplash.com/photo-1701918190846-cda38e1e9620?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwyfHx3aGl0ZSUyMG1vZGVybiUyMHN1diUyMGNsZWFuJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODMxMTM5NjZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "White modern SUV parked"
+    },
+    "empty_state_illustration": {
+      "url": "https://images.unsplash.com/photo-1709596046137-8f2d90fc973d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1Mjh8MHwxfHNlYXJjaHwyfHxtb3JvY2NvJTIwZGVzZXJ0JTIwcm9hZCUyMGxhbmRzY2FwZXxlbnwwfHx8fDE3ODMxMTM5NjZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Empty desert road in Morocco"
+    }
+  },
+  "haptics": {
+    "tab_press": "light",
+    "filter_chip_toggle": "light",
+    "book_now_press": "medium",
+    "date_select": "selection",
+    "whatsapp_press": "light"
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: Arabic language selection must support React Native's I18nManager.forceRTL(true) and mirror the layouts correctly.",
+    "Follow '1 iOS-Native Clean' personality tightly: highly readable, generous padding, un-cluttered interface.",
+    "Colors: Strictly adhere to the monochrome charcoal/white palette to exude luxury and cleanness. Do not introduce blues or indigos.",
+    "Typography: Use Plus Jakarta Sans. Rely on sizing (sm to 2xl) and keep font-weight at 400 or 500 max. DO NOT use bold (700).",
+    "Images MUST use a top-to-bottom gradient scrim (Layer 1) before overlaying text (Layer 2) to guarantee contrast.",
+    "WhatsApp Contact on the Car Details screen should be prominent but distinct from the primary 'Book Now' checkout flow.",
+    "Store bookings via AsyncStorage (since no user auth exists yet) to populate the 'My Bookings' screen."
+  ]
+}

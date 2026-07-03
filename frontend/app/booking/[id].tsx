@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -15,15 +15,17 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, radius, shadow, CITIES, WHATSAPP_PHONE } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
-import { fetchCarDetails, CarDetails, createBooking } from "@/src/api";
+import { fetchCarDetails, fetchCarPrice, createBooking, CarDetails, PriceBreakdown } from "@/src/api";
 import { addBooking } from "@/src/bookingsStore";
 import { AppText, Button, Loading, Chip } from "@/src/components/ui";
 
-function fmt(d: Date) {
+const COUNTRY_CODES = ["+212", "+33", "+34", "+32", "+31", "+49", "+44", "+1"];
+
+function iso(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day} 10:00`;
+  return `${y}-${m}-${day}`;
 }
 function label(d: Date) {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -45,18 +47,21 @@ export default function BookingScreen() {
   });
   const [ret, setRet] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 4);
+    d.setDate(d.getDate() + 4); // min 3-day rental
     return d;
   });
   const [picker, setPicker] = useState<null | "pickup" | "return">(null);
   const [city, setCity] = useState<string | undefined>();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [code, setCode] = useState("+212");
+  const [whatsapp, setWhatsapp] = useState("");
+
+  const [price, setPrice] = useState<PriceBreakdown | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
-  const [success, setSuccess] = useState<{ ref: string; total: number } | null>(null);
+  const [success, setSuccess] = useState<{ ref: string; pin: string; total: number } | null>(null);
 
   useEffect(() => {
     fetchCarDetails(id)
@@ -67,22 +72,50 @@ export default function BookingScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading || !car) return <Loading />;
-
-  const price = parseFloat(car.price);
   const dayMs = 1000 * 60 * 60 * 24;
   const days = Math.max(1, Math.round((ret.getTime() - pickup.getTime()) / dayMs));
-  const total = days * price;
+
+  const loadPrice = useCallback(async () => {
+    if (!car || ret <= pickup) return;
+    try {
+      const p = await fetchCarPrice(car.id, iso(pickup), iso(ret));
+      setPrice(p);
+    } catch {
+      setPrice(null);
+    }
+  }, [car, pickup, ret]);
+
+  useEffect(() => {
+    loadPrice();
+  }, [loadPrice]);
+
+  if (loading || !car) return <Loading />;
+
+  const dailyBase = parseFloat(car.price);
+  const total = price ? price.total_price : dailyBase * days;
   const cities = car.available_cities?.length ? car.available_cities : CITIES;
+
+  const onPickup = (d: Date) => {
+    setPickup(d);
+    // enforce min 3-day rental
+    const minRet = new Date(d);
+    minRet.setDate(minRet.getDate() + 3);
+    if (ret < minRet) setRet(minRet);
+  };
+  const onReturn = (d: Date) => {
+    const minRet = new Date(pickup);
+    minRet.setDate(minRet.getDate() + 3);
+    setRet(d < minRet ? minRet : d);
+  };
 
   const submit = async () => {
     setErr("");
-    if (!name.trim() || !email.trim() || !phone.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !whatsapp.trim() || !city) {
       setErr(t("fillAllFields"));
       return;
     }
-    if (ret <= pickup) {
-      setErr(t("selectDates"));
+    if (days < 3) {
+      setErr(t("minRental"));
       return;
     }
     setSubmitting(true);
@@ -90,30 +123,32 @@ export default function BookingScreen() {
       const res = await createBooking({
         car_id: car.id,
         car_name: car.name,
-        customer_name: name.trim(),
-        customer_email: email.trim(),
-        customer_phone: phone.trim(),
-        pickup_date: fmt(pickup),
-        return_date: fmt(ret),
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        country_code: code,
+        whatsapp: whatsapp.trim(),
+        pickup_date: iso(pickup),
+        return_date: iso(ret),
         pickup_city: city,
+        payment_method: "cash",
       });
-      const b = res.booking || {};
-      const reference = b.booking_reference || `BOOK-${Date.now()}`;
-      const totalPrice = b.total_price ? parseFloat(b.total_price) : total;
+      const reference = res.booking_number || `ABC${Date.now()}`;
+      const pin = res.pin_code || "";
       await addBooking({
         id: `${Date.now()}`,
         reference,
+        pin_code: pin,
         car_id: car.id,
         car_name: car.name,
         car_image: car.images?.[0] || car.image_url,
-        pickup_date: fmt(pickup),
-        return_date: fmt(ret),
+        pickup_date: iso(pickup),
+        return_date: iso(ret),
         pickup_city: city,
-        total_price: totalPrice,
-        status: b.status || "pending",
+        total_price: total,
+        status: "pending",
         created_at: new Date().toISOString(),
       });
-      setSuccess({ ref: reference, total: totalPrice });
+      setSuccess({ ref: reference, pin, total });
     } catch (e: any) {
       setErr(e.message || t("errorLoad"));
     } finally {
@@ -123,12 +158,11 @@ export default function BookingScreen() {
 
   const finishWhatsapp = () => {
     const msg = encodeURIComponent(
-      `Bonjour AIRBCARS! Réservation ${success?.ref}\nVoiture: ${car.name}\nDu ${fmt(pickup)} au ${fmt(ret)}\nVille: ${city}\nNom: ${name}\nTotal: ${Math.round(success?.total || total)}€`,
+      `Bonjour AIRBCARS! Réservation ${success?.ref} (PIN ${success?.pin})\nVoiture: ${car.name}\nDu ${iso(pickup)} au ${iso(ret)}\nVille: ${city}\nNom: ${firstName} ${lastName}\nTotal: ${Math.round(success?.total || total)}€`,
     );
     Linking.openURL(`https://wa.me/${WHATSAPP_PHONE}?text=${msg}`);
   };
 
-  // Success view
   if (success) {
     return (
       <View style={[styles.container, styles.successWrap, { paddingTop: insets.top }]}>
@@ -141,6 +175,11 @@ export default function BookingScreen() {
         <AppText color={colors.muted} style={{ marginTop: spacing.sm }}>
           {t("reference")}: {success.ref}
         </AppText>
+        {success.pin ? (
+          <AppText color={colors.muted} style={{ marginTop: 2 }}>
+            {t("pinCode")}: {success.pin}
+          </AppText>
+        ) : null}
         <AppText size="2xl" weight="bold" style={{ marginTop: spacing.lg }}>
           {Math.round(success.total)} €
         </AppText>
@@ -169,7 +208,6 @@ export default function BookingScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable testID="booking-back-btn" onPress={() => router.back()} style={styles.hBack}>
           <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
@@ -185,13 +223,12 @@ export default function BookingScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Car summary */}
         <View style={styles.carRow}>
-          <AppText weight="semibold" size="lg">
+          <AppText weight="semibold" size="lg" numberOfLines={1} style={{ flex: 1 }}>
             {car.name}
           </AppText>
           <AppText color={colors.muted}>
-            {Math.round(price)} € {t("perDay")}
+            {Math.round(dailyBase)} € {t("perDay")}
           </AppText>
         </View>
 
@@ -211,6 +248,9 @@ export default function BookingScreen() {
           <Ionicons name="calendar-outline" size={18} color={colors.brand} />
           <AppText size="lg">{label(ret)}</AppText>
         </Pressable>
+        <AppText size="sm" color={colors.muted} style={{ marginTop: spacing.xs }}>
+          {t("minRental")}
+        </AppText>
 
         {picker && (
           <DateTimePicker
@@ -220,7 +260,7 @@ export default function BookingScreen() {
             minimumDate={new Date()}
             onChange={(e, d) => {
               if (Platform.OS !== "ios") setPicker(null);
-              if (d) picker === "pickup" ? setPickup(d) : setRet(d);
+              if (d) (picker === "pickup" ? onPickup(d) : onReturn(d));
             }}
           />
         )}
@@ -244,42 +284,86 @@ export default function BookingScreen() {
         <AppText weight="medium" style={styles.fieldLabel}>
           {t("yourDetails")}
         </AppText>
+        <View style={{ flexDirection: "row", gap: spacing.md }}>
+          <TextInput
+            testID="input-first-name"
+            placeholder={t("firstName")}
+            placeholderTextColor={colors.muted}
+            value={firstName}
+            onChangeText={setFirstName}
+            style={[styles.input, { flex: 1 }]}
+          />
+          <TextInput
+            testID="input-last-name"
+            placeholder={t("lastName")}
+            placeholderTextColor={colors.muted}
+            value={lastName}
+            onChangeText={setLastName}
+            style={[styles.input, { flex: 1 }]}
+          />
+        </View>
+
+        <AppText size="sm" color={colors.muted} style={{ marginBottom: spacing.sm }}>
+          <Ionicons name="logo-whatsapp" size={13} color={colors.whatsapp} /> {t("whatsappNumber")}
+        </AppText>
+        <View style={{ flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {COUNTRY_CODES.map((c) => (
+              <Chip key={c} label={c} active={code === c} onPress={() => setCode(c)} testID={`code-${c}`} />
+            ))}
+          </ScrollView>
+        </View>
         <TextInput
-          testID="input-name"
-          placeholder={t("fullName")}
+          testID="input-whatsapp"
+          placeholder="6XX-XXX-XXX"
           placeholderTextColor={colors.muted}
-          value={name}
-          onChangeText={setName}
-          style={styles.input}
-        />
-        <TextInput
-          testID="input-email"
-          placeholder={t("email")}
-          placeholderTextColor={colors.muted}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-        />
-        <TextInput
-          testID="input-phone"
-          placeholder={t("phone")}
-          placeholderTextColor={colors.muted}
-          value={phone}
-          onChangeText={setPhone}
+          value={whatsapp}
+          onChangeText={setWhatsapp}
           keyboardType="phone-pad"
           style={styles.input}
         />
 
+        {/* Payment */}
+        <AppText weight="medium" style={styles.fieldLabel}>
+          {t("paymentMethod")}
+        </AppText>
+        <View style={styles.payRow}>
+          <Ionicons name="cash-outline" size={22} color={colors.success} />
+          <View style={{ flex: 1 }}>
+            <AppText weight="semibold">{t("cashOnDelivery")}</AppText>
+            <AppText size="sm" color={colors.muted}>
+              {t("cashDesc")}
+            </AppText>
+          </View>
+          <Ionicons name="checkmark-circle" size={20} color={colors.brand} />
+        </View>
+
         {/* Summary */}
         <View style={styles.summary}>
           <View style={styles.sumRow}>
-            <AppText color={colors.onSurfaceTertiary}>
-              {Math.round(price)} € × {days} {days > 1 ? t("days") : t("day")}
+            <AppText color={colors.onSurfaceTertiary}>{t("dailyPrice")}</AppText>
+            <AppText weight="medium">
+              {Math.round(price?.average_daily_price ?? dailyBase)} €
             </AppText>
-            <AppText weight="medium">{Math.round(price * days)} €</AppText>
           </View>
+          <View style={styles.sumRow}>
+            <AppText color={colors.onSurfaceTertiary}>
+              {t("subtotal")} ({days} {days > 1 ? t("days") : t("day")})
+            </AppText>
+            <AppText weight="medium">
+              {Math.round(price?.base_price_without_supplement ?? dailyBase * days)} €
+            </AppText>
+          </View>
+          {price?.has_short_term_supplement ? (
+            <View style={styles.sumRow}>
+              <AppText color={colors.warning}>
+                {t("shortTermFee")} (+{price.supplement_percentage}%)
+              </AppText>
+              <AppText weight="medium" color={colors.warning}>
+                {Math.round(price.supplement_amount)} €
+              </AppText>
+            </View>
+          ) : null}
           <View style={styles.sumDivider} />
           <View style={styles.sumRow}>
             <AppText size="lg" weight="semibold">
@@ -298,7 +382,6 @@ export default function BookingScreen() {
         ) : null}
       </ScrollView>
 
-      {/* Sticky confirm */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + spacing.md }]}>
         <Button
           label={submitting ? t("processing") : t("confirmBooking")}
@@ -322,16 +405,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  hBack: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  hBack: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   carRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: spacing.md,
     backgroundColor: colors.surfaceSecondary,
     padding: spacing.lg,
     borderRadius: radius.md,
@@ -352,10 +431,18 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.lg,
-    marginBottom: spacing.md,
     fontFamily: "PlusJakartaSans-Regular",
     fontSize: 16,
     color: colors.onSurface,
+  },
+  payRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.lg,
   },
   summary: {
     marginTop: spacing.xl,

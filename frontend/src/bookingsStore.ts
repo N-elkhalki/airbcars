@@ -2,7 +2,8 @@ import { storage } from "@/src/utils/storage";
 
 export type LocalBooking = {
   id: string;
-  reference: string;
+  reference: string; // booking_number
+  pin_code?: string;
   car_id: string;
   car_name: string;
   car_image?: string;

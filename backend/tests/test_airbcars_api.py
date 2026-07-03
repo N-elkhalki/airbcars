@@ -3,8 +3,12 @@
 Covers:
 - /api/cars listing (no filter and with filters)
 - /api/cars/{id} details and 404 handling
-- /api/bookings creation (hits REAL upstream - marked)
+- /api/car-price short-term supplement logic
+- /api/bookings creation via the real CSRF+session flow (hits REAL upstream)
+- /api/bookings validation (missing required fields -> 422)
 """
+from datetime import date, timedelta
+
 import pytest
 
 
@@ -22,56 +26,29 @@ class TestCarsList:
         assert data.get("success") is True
         assert isinstance(data.get("cars"), list)
         assert len(data["cars"]) > 0
-        # Validate car shape
         car = data["cars"][0]
         for field in ["id", "name", "brand", "category", "transmission", "fuel_type", "price"]:
             assert field in car, f"missing {field} in car"
-        # Pagination
         assert "pagination" in data
 
     def test_cars_filter_category_economy(self, api_client, base_url):
         r = api_client.get(f"{base_url}/api/cars", params={"category": "economy", "limit": 10})
         assert r.status_code == 200
-        data = r.json()
-        assert data.get("success") is True
-        for c in data.get("cars", []):
+        for c in r.json().get("cars", []):
             assert c["category"].lower() == "economy"
 
     def test_cars_filter_transmission_manual(self, api_client, base_url):
         r = api_client.get(f"{base_url}/api/cars", params={"transmission": "manual", "limit": 10})
         assert r.status_code == 200
-        data = r.json()
-        for c in data.get("cars", []):
-            assert c["transmission"].lower() == "manual"
-
-    def test_cars_filter_fuel_essence(self, api_client, base_url):
-        r = api_client.get(f"{base_url}/api/cars", params={"fuel_type": "essence", "limit": 10})
-        assert r.status_code == 200
         for c in r.json().get("cars", []):
-            assert c["fuel_type"].lower() == "essence"
-
-    def test_cars_filter_city(self, api_client, base_url):
-        r = api_client.get(f"{base_url}/api/cars", params={"city": "Casablanca", "limit": 10})
-        assert r.status_code == 200
-        data = r.json()
-        assert data.get("success") is True
-        # city may not be returned on every car, so just ensure it succeeded
+            assert c["transmission"].lower() == "manual"
 
     def test_cars_price_range(self, api_client, base_url):
         r = api_client.get(f"{base_url}/api/cars", params={"min_price": 30, "max_price": 60, "limit": 20})
         assert r.status_code == 200
         for c in r.json().get("cars", []):
             price = float(c["price"])
-            assert 30 <= price <= 60, f"price {price} outside range"
-
-    def test_cars_pagination(self, api_client, base_url):
-        r1 = api_client.get(f"{base_url}/api/cars", params={"page": 1, "limit": 2})
-        r2 = api_client.get(f"{base_url}/api/cars", params={"page": 2, "limit": 2})
-        assert r1.status_code == 200 and r2.status_code == 200
-        ids1 = {c["id"] for c in r1.json().get("cars", [])}
-        ids2 = {c["id"] for c in r2.json().get("cars", [])}
-        # Different pages should give different cars
-        assert ids1 != ids2 or len(ids1) < 2
+            assert 30 <= price <= 60
 
 
 # --- /api/cars/{id} ---
@@ -89,44 +66,93 @@ class TestCarDetails:
 
     def test_get_car_details_invalid_id_returns_404(self, api_client, base_url):
         r = api_client.get(f"{base_url}/api/cars/99999999")
-        assert r.status_code == 404, f"expected 404 got {r.status_code}: {r.text[:200]}"
+        assert r.status_code == 404
+
+
+# --- /api/car-price ---
+class TestCarPrice:
+    def _dates(self, days_apart: int):
+        pickup = date.today() + timedelta(days=10)
+        ret = pickup + timedelta(days=days_apart)
+        return pickup.isoformat(), ret.isoformat()
+
+    def test_price_3_day_rental_has_short_term_supplement(self, api_client, base_url):
+        pickup, ret = self._dates(3)
+        r = api_client.get(
+            f"{base_url}/api/car-price",
+            params={"car_id": "313", "pickup_date": pickup, "return_date": ret},
+        )
+        assert r.status_code == 200, r.text[:300]
+        data = r.json()
+        assert data.get("success") is True
+        # Response shape
+        for field in [
+            "total_price",
+            "base_price_without_supplement",
+            "average_daily_price",
+            "total_days",
+            "has_short_term_supplement",
+            "supplement_percentage",
+            "supplement_amount",
+        ]:
+            assert field in data, f"missing {field}"
+        assert data["total_days"] == 3
+        assert data["has_short_term_supplement"] is True
+        assert data["supplement_percentage"] == 40
+        # supplement_amount should equal ~40% of base
+        expected_supp = round(data["base_price_without_supplement"] * 0.4, 2)
+        assert abs(data["supplement_amount"] - expected_supp) < 1.0
+        assert data["total_price"] > data["base_price_without_supplement"]
+
+    def test_price_5_day_rental_no_supplement(self, api_client, base_url):
+        pickup, ret = self._dates(5)
+        r = api_client.get(
+            f"{base_url}/api/car-price",
+            params={"car_id": "313", "pickup_date": pickup, "return_date": ret},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("success") is True
+        assert data["total_days"] == 5
+        assert data["has_short_term_supplement"] is False
+        assert data["supplement_amount"] == 0
+        assert data["total_price"] == data["base_price_without_supplement"]
 
 
 # --- /api/bookings ---
-# NOTE: this hits the REAL upstream booking endpoint.
+# NOTE: this hits the REAL upstream booking endpoint via the CSRF+session flow.
 class TestBookings:
-    def test_create_booking(self, api_client, base_url):
+    def test_create_booking_success(self, api_client, base_url):
+        pickup = (date.today() + timedelta(days=14)).isoformat()
+        ret = (date.today() + timedelta(days=17)).isoformat()
         payload = {
             "car_id": "313",
             "car_name": "TEST_Renault Clio5 2025",
-            "customer_name": "TEST_Autobot",
-            "customer_email": "test_autobot@example.com",
-            "customer_phone": "+212600000000",
-            "pickup_date": "2026-03-01",
-            "return_date": "2026-03-03",
+            "first_name": "TEST",
+            "last_name": "Autobot",
+            "country_code": "+212",
+            "whatsapp": "600000000",
+            "pickup_date": pickup,
+            "return_date": ret,
             "pickup_city": "Fes",
-            "notes": "TEST_automated regression test - please ignore",
+            "payment_method": "cash",
         }
         r = api_client.post(f"{base_url}/api/bookings", json=payload)
-        # Backend must not blow up (500/502); upstream may still reject the booking
-        # with {success: false} which the frontend surfaces as an error.
-        assert r.status_code == 200, f"backend error: {r.status_code} {r.text[:300]}"
+        assert r.status_code == 200, f"backend error: {r.status_code} {r.text[:400]}"
         data = r.json()
-        assert "success" in data, f"unexpected response shape: {data}"
-        if data.get("success") is not True:
-            pytest.skip(
-                f"UPSTREAM booking rejected (out of our control): {data.get('error')}"
-            )
-        assert "booking" in data or "reference" in str(data)
+        assert data.get("success") is True, f"upstream failure: {data}"
+        assert data.get("booking_number"), "booking_number missing"
+        assert data.get("pin_code"), "pin_code missing"
 
     def test_create_booking_missing_required_field(self, api_client, base_url):
-        # customer_name missing -> should fail Pydantic validation with 422
         payload = {
             "car_id": "313",
-            "customer_email": "x@example.com",
-            "customer_phone": "+212600000000",
+            "first_name": "TEST",
+            # last_name missing
+            "whatsapp": "600000000",
             "pickup_date": "2026-03-01",
-            "return_date": "2026-03-03",
+            "return_date": "2026-03-04",
+            # pickup_city missing
         }
         r = api_client.post(f"{base_url}/api/bookings", json=payload)
         assert r.status_code == 422

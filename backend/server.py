@@ -11,6 +11,7 @@ from typing import Optional
 import uuid
 from datetime import datetime, timezone
 import requests
+import re
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -21,6 +22,11 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 AIRBCARS_API_URL = os.environ['AIRBCARS_API_URL']
+AIRBCARS_BASE = AIRBCARS_API_URL.rsplit("/api/", 1)[0]  # https://airbcars.ma
+AIRBCARS_PRICE_URL = f"{AIRBCARS_BASE}/api/get_car_price.php"
+AIRBCARS_BOOKINGS_URL = f"{AIRBCARS_BASE}/api/bookings.php"
+AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
+CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -57,13 +63,14 @@ def _upstream_post(action: str, payload: dict) -> dict:
 class BookingCreate(BaseModel):
     car_id: str
     car_name: Optional[str] = None
-    customer_name: str
-    customer_email: str
-    customer_phone: str
-    pickup_date: str
-    return_date: str
-    pickup_city: Optional[str] = None
-    notes: Optional[str] = None
+    first_name: str
+    last_name: str
+    country_code: str = "+212"
+    whatsapp: str
+    pickup_date: str  # YYYY-MM-DD
+    return_date: str  # YYYY-MM-DD
+    pickup_city: str
+    payment_method: str = "cash"
 
 
 # ---------- Routes ----------
@@ -116,38 +123,88 @@ async def get_car_details(car_id: str):
     return data
 
 
-@api_router.post("/bookings")
-async def create_booking(booking: BookingCreate):
-    payload = {
+@api_router.get("/car-price")
+async def get_car_price(car_id: str, pickup_date: str, return_date: str):
+    """Proxy the real pricing engine (temporary pricing + short-term supplement)."""
+    def _call():
+        r = requests.get(
+            AIRBCARS_PRICE_URL,
+            params={
+                "car_id": car_id,
+                "pickup_date": pickup_date,
+                "return_date": return_date,
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    try:
+        data = await run_in_threadpool(_call)
+    except Exception as e:
+        logger.error(f"get_car_price upstream error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to compute price")
+    return data
+
+
+def _create_upstream_booking(booking: "BookingCreate") -> dict:
+    """Replicates the website flow: fetch CSRF token + session cookie from
+    booking.php, then POST the form to api/bookings.php."""
+    session = requests.Session()
+    page = session.get(f"{AIRBCARS_BOOKING_PAGE}?id={booking.car_id}", timeout=20)
+    match = CSRF_RE.search(page.text)
+    if not match:
+        raise HTTPException(status_code=502, detail="Could not obtain booking token")
+    csrf_token = match.group(1)
+
+    form = {
+        "csrf_token": csrf_token,
         "car_id": booking.car_id,
-        "customer_name": booking.customer_name,
-        "customer_email": booking.customer_email,
-        "customer_phone": booking.customer_phone,
+        "first_name": booking.first_name,
+        "last_name": booking.last_name,
+        "country_code": booking.country_code,
+        "whatsapp": re.sub(r"[^0-9]", "", booking.whatsapp),
         "pickup_date": booking.pickup_date,
         "return_date": booking.return_date,
+        "pickup_city": booking.pickup_city,
+        "payment_method": booking.payment_method,
     }
-    if booking.notes:
-        payload["notes"] = booking.notes
+    resp = session.post(AIRBCARS_BOOKINGS_URL, data=form, timeout=20)
     try:
-        data = await run_in_threadpool(_upstream_post, "create_booking", payload)
+        return resp.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail="Invalid booking response")
+
+
+@api_router.post("/bookings")
+async def create_booking(booking: BookingCreate):
+    try:
+        data = await run_in_threadpool(_create_upstream_booking, booking)
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"create_booking upstream error: {e}")
         raise HTTPException(status_code=502, detail="Failed to create booking")
 
-    # Persist a local copy so we can serve reliable history / analytics.
+    if not data.get("success"):
+        raise HTTPException(
+            status_code=422, detail=data.get("error", "Booking failed")
+        )
+
+    # Persist a local copy only on a real success.
     record = {
         "id": str(uuid.uuid4()),
         "car_id": booking.car_id,
         "car_name": booking.car_name,
-        "customer_name": booking.customer_name,
-        "customer_email": booking.customer_email,
-        "customer_phone": booking.customer_phone,
+        "first_name": booking.first_name,
+        "last_name": booking.last_name,
+        "country_code": booking.country_code,
+        "whatsapp": booking.whatsapp,
         "pickup_date": booking.pickup_date,
         "return_date": booking.return_date,
         "pickup_city": booking.pickup_city,
-        "upstream": data,
+        "booking_number": data.get("booking_number"),
+        "pin_code": data.get("pin_code"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.bookings.insert_one({**record})

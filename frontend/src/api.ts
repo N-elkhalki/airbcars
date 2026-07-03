@@ -67,14 +67,38 @@ export async function fetchCarDetails(id: string): Promise<CarDetails> {
 export type BookingPayload = {
   car_id: string;
   car_name?: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  pickup_date: string;
-  return_date: string;
-  pickup_city?: string;
-  notes?: string;
+  first_name: string;
+  last_name: string;
+  country_code: string;
+  whatsapp: string;
+  pickup_date: string; // YYYY-MM-DD
+  return_date: string; // YYYY-MM-DD
+  pickup_city: string;
+  payment_method?: string;
 };
+
+export type PriceBreakdown = {
+  success: boolean;
+  total_price: number;
+  base_price_without_supplement: number;
+  average_daily_price: number;
+  total_days: number;
+  has_short_term_supplement: boolean;
+  supplement_percentage: number;
+  supplement_amount: number;
+};
+
+export async function fetchCarPrice(
+  carId: string,
+  pickup: string,
+  ret: string,
+): Promise<PriceBreakdown> {
+  const res = await fetch(
+    `${BASE}/api/car-price?car_id=${carId}&pickup_date=${pickup}&return_date=${ret}`,
+  );
+  if (!res.ok) throw new Error("Failed to compute price");
+  return res.json();
+}
 
 export async function createBooking(payload: BookingPayload): Promise<any> {
   const res = await fetch(`${BASE}/api/bookings`, {

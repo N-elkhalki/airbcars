@@ -1,0 +1,39 @@
+{
+  "summary": "Regression + new-feature testing of the redesigned AIRBCARS booking flow. All 11 backend pytest tests PASS, including the new /api/car-price short-term supplement logic (3-day rental → +40% supplement = 147€ total on car 313; 5-day rental → no supplement, base==total) and the real CSRF+session upstream booking flow which now returns success:true with booking_number + pin_code (verified booking ABC734805, PIN 023099 created during test). 422 validation on missing required fields also works. Frontend booking flow (/booking/313) works end-to-end on mobile viewport: name inputs, WhatsApp with +212 default country-code chips, pickup/return date pickers, min 3-day rental notice, pickup city chips, cash payment, live price breakdown (35€/day × 3 = 105 + 40% short-term fee 42 = 147€ total), Confirm Booking → success screen with reference + PIN + Finish WhatsApp button. The confirmed booking then appears in the Mes réservations tab. Regression on Cars tab filters, Car details (Réserver + WhatsApp), and Settings language switch FR/EN/AR still works. Non-blocking: shadow*/pointerEvents deprecation warnings still logged by web preview only.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "global styles / expo-image", "issue": "Console warnings on web preview: '\"shadow*\" style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Non-blocking cosmetic RN 0.75+ migration."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_airbcars_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional polish) Migrate any remaining shadow*/pointerEvents style props to their non-deprecated equivalents (boxShadow / style.pointerEvents) to silence RN Web warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py _create_upstream_booking correctly separates CSRF-fetch (GET booking.php) from POST api/bookings.php using a shared requests.Session so PHPSESSID + csrf_token round-trip works.",
+    "Local Mongo insert now only happens when upstream success is true (`if not data.get('success'): raise HTTPException`). Fixes the DB-pollution issue flagged in iteration_1.",
+    "BookingCreate model correctly enforces required fields via Pydantic — verified that missing last_name/pickup_city returns 422 (not 500).",
+    "WhatsApp number is normalised (`re.sub('[^0-9]', ...)`) before being sent upstream — good defensive input cleanup.",
+    "Frontend Bookings tab reads from AsyncStorage (`bookingsStore.getBookings`) with `useFocusEffect`, so the created booking reliably appears after navigation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_airbcars_api.py (updated to match new BookingCreate schema + added TestCarPrice for supplement logic)"
+  ],
+  "success_rate": {"backend": "100% (11/11 pytest passing)", "frontend": "100% of tested flows (home, cars+filters, car details, booking form + submit + success screen, bookings tab entry, settings FR/EN/AR)"},
+  "seed_data_creation": "Real upstream booking ABC734805 (PIN 023099) created via /api/bookings during pytest and again via UI. Payload prefixed with TEST_. Kept as evidence.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://carrent-mobile-1.preview.emergentagent.com. Backend tests at /app/backend/tests/test_airbcars_api.py cover /api/cars, /api/cars/{id}, /api/car-price (3-day supplement + 5-day no-supplement) and /api/bookings (real upstream CSRF flow + 422 validation). Booking screen testIDs: input-first-name, input-last-name, input-whatsapp, code-+212, bcity-{City}, pickup-date-btn, return-date-btn, confirm-booking-btn, finish-whatsapp-btn, back-home-btn, booking-error. Settings uses lang-fr/en/ar. Bookings list uses testID 'bookings-list' with 'booking-{id}' rows.",
+  "rca_of_issue": "The previous upstream failure (iteration_1) is fully resolved by switching from the /api/mobile_api.php?action=create_booking JSON endpoint to the website booking flow: GET https://airbcars.ma/booking.php?id={car_id} to obtain csrf_token + PHPSESSID cookie in a requests.Session, then POST form-urlencoded body (csrf_token, car_id, first_name, last_name, country_code, whatsapp, pickup_date, return_date, pickup_city, payment_method) to https://airbcars.ma/api/bookings.php. The server responds with {success:true, booking_number, pin_code, message} which the backend passes through unchanged."
+}

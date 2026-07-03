@@ -1,0 +1,51 @@
+{
+  "summary": "Tested AIRBCARS mobile app end-to-end. Backend proxy endpoints (/api/cars, /api/cars/{id}) work correctly with all filters and pagination. Fixed a 502-vs-404 handling bug for invalid car IDs. Frontend home / cars / car detail / booking form / bookings tab / settings (FR/EN/AR) all render and function correctly. The booking creation flow submits properly to the backend, but the REAL upstream airbcars.ma create_booking endpoint currently rejects every payload with 'Failed to create booking' (verified against upstream directly with multiple payload shapes) — so the booking success screen path cannot be exercised end-to-end. This is external and out of our control.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/bookings", "issue": "Upstream airbcars.ma returns {success:false, error:'Failed to create booking'} for JSON payloads and 'Missing required booking information' for form-encoded — the create booking flow cannot complete against the real API. Verified directly against upstream. Not a backend bug, but the feature is unusable until upstream is fixed or the correct payload/content-type is discovered.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/bookings", "issue": "Backend persists a local copy in Mongo even when upstream returns success:false. Should skip insert (or mark status=failed) on upstream failure."},
+      {"endpoint": "POST /api/bookings", "issue": "Backend returns HTTP 200 with body {success:false,...} on upstream failure. Consider mapping to 4xx/502 for cleaner semantics (frontend already handles success:false so not breaking)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/car/[id].tsx", "issue": "Spec labels 'places' — displayed value ('5') sits above a lowercase label 'places'. Minor polish: capitalise ('Places') for consistency with 'Boîte', 'Carburant', 'Année'.", "testID": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Booking → success screen", "issue": "Cannot verify booking success screen + 'Finish WhatsApp' button + reference display because upstream always fails. The frontend correctly surfaces the error via testID 'booking-error' ('Failed to create booking').", "affected_testIDs": ["confirm-booking-btn", "booking-error"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "global styles", "issue": "Console warnings: 'shadow*' style props are deprecated (use boxShadow) and 'props.pointerEvents is deprecated' (use style.pointerEvents). Non-blocking but should be migrated."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_airbcars_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Investigate upstream airbcars.ma create_booking payload requirements (contact partner or inspect their web form) — currently all payload variants are rejected.",
+    "In backend POST /api/bookings, skip Mongo insert when upstream returns success:false (or store with status='failed').",
+    "(Optional polish) Capitalise the 'places' label on the car details specs grid.",
+    "(Optional) Migrate deprecated shadow* / pointerEvents props to their style-based replacements."
+  ],
+  "critical_code_review_comments": [
+    "server.py _upstream_get initially called raise_for_status() which converted upstream 404 (car not found) into a backend 502. Fixed to only raise on 5xx and rely on downstream success:false checks. Verified /api/cars/99999999 now returns 404.",
+    "Bookings are persisted regardless of upstream success; this pollutes the local DB with failed attempts.",
+    "server.py has no GET /api/bookings; the 'Réservations' tab must be reading local storage — verify that flow uses AsyncStorage after a successful upstream booking, else the tab will always be empty."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (improved _upstream_get error handling so 4xx JSON responses propagate for correct 404 mapping)",
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_airbcars_api.py (new — 12 tests: 11 passing, 1 upstream-dependent skip)"
+  ],
+  "success_rate": {"backend": "100% of proxy tests (11/11 non-upstream-dependent); create_booking blocked by upstream", "frontend": "100% of navigable/verifiable screens (home, cars+filters, car detail, booking form validation & submit, bookings empty state, settings with FR/EN/AR switching, contact rows)"},
+  "seed_data_creation": "None. Booking creation attempts prefixed with TEST_ but upstream never accepted them.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://carrent-mobile-1.preview.emergentagent.com. Backend tests at /app/backend/tests/test_airbcars_api.py (pytest). Important testIDs discovered: booking form uses input-name/input-email/input-phone (not name-input etc.), pickup-date-btn, return-date-btn, bcity-{city}, confirm-booking-btn, booking-error, booking-back-btn. Settings uses lang-fr/lang-en/lang-ar, settings-whatsapp/settings-call/settings-email. My Bookings empty-state has explore-cars-btn. Booking success screen cannot be reached until upstream create_booking works.",
+  "rca_of_issue": "Invalid car ID 502 bug: requests.raise_for_status() in _upstream_get raised HTTPError on upstream 404 before the success:false check could execute, causing get_car_details to hit the generic except and return 502. Fixed by only raising for 5xx and letting 4xx JSON pass through to the success check. Upstream booking failure RCA: airbcars.ma create_booking endpoint returns generic 'Failed to create booking' for JSON payloads with all documented fields (car_id, customer_*, pickup_date, return_date, pickup_city). Form-encoded variant returns 'Missing required booking information'. Root cause is on the airbcars side — either extra undocumented fields are required, or endpoint is broken; needs partner communication to unblock."
+}

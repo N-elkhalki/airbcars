@@ -1,0 +1,280 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { I18nManager } from "react-native";
+import { storage } from "@/src/utils/storage";
+
+export type Lang = "fr" | "en" | "ar";
+
+type Dict = Record<string, string>;
+
+const translations: Record<Lang, Dict> = {
+  fr: {
+    appName: "AIRBCARS",
+    tagline: "Louez votre voiture au Maroc",
+    home: "Accueil",
+    cars: "Voitures",
+    bookings: "Réservations",
+    settings: "Réglages",
+    selectCity: "Choisir une ville",
+    allCities: "Toutes les villes",
+    categories: "Catégories",
+    featured: "Voitures en vedette",
+    viewAll: "Voir tout",
+    seats: "places",
+    perDay: "/jour",
+    bookNow: "Réserver",
+    contactWhatsapp: "Contacter sur WhatsApp",
+    filters: "Filtres",
+    category: "Catégorie",
+    transmission: "Boîte",
+    fuel: "Carburant",
+    price: "Prix",
+    all: "Tous",
+    clearFilters: "Effacer les filtres",
+    noCars: "Aucune voiture ne correspond à vos filtres",
+    loadingCars: "Chargement des voitures...",
+    retry: "Réessayer",
+    errorLoad: "Impossible de charger l'inventaire",
+    availableCities: "Villes disponibles",
+    description: "Description",
+    specifications: "Caractéristiques",
+    year: "Année",
+    booking: "Réservation",
+    pickupDate: "Date de prise en charge",
+    returnDate: "Date de retour",
+    pickupCity: "Ville de prise en charge",
+    yourDetails: "Vos informations",
+    fullName: "Nom complet",
+    email: "E-mail",
+    phone: "Téléphone",
+    tripSummary: "Résumé de la location",
+    days: "jours",
+    day: "jour",
+    total: "Total",
+    confirmBooking: "Confirmer la réservation",
+    processing: "Traitement en cours...",
+    bookingConfirmed: "Réservation confirmée !",
+    reference: "Référence",
+    finishWhatsapp: "Finaliser sur WhatsApp",
+    backHome: "Retour à l'accueil",
+    myBookings: "Mes réservations",
+    noBookings: "Vous n'avez pas encore de réservation",
+    startExploring: "Explorer les voitures",
+    status: "Statut",
+    pending: "En attente",
+    confirmed: "Confirmée",
+    language: "Langue",
+    about: "À propos",
+    contactUs: "Nous contacter",
+    callUs: "Appelez-nous",
+    fillAllFields: "Veuillez remplir tous les champs",
+    selectDates: "Veuillez choisir les dates",
+    economy: "Économique",
+    compact: "Compacte",
+    suv: "SUV",
+    luxury: "Luxe",
+    van: "Van",
+    automatic: "Automatique",
+    manual: "Manuelle",
+    essence: "Essence",
+    diesel: "Diesel",
+    aboutText:
+      "AIRBCARS est la première plateforme de location de voitures au Maroc, reliant les voyageurs à des agences de confiance à travers le royaume.",
+  },
+  en: {
+    appName: "AIRBCARS",
+    tagline: "Rent your car in Morocco",
+    home: "Home",
+    cars: "Cars",
+    bookings: "Bookings",
+    settings: "Settings",
+    selectCity: "Select a city",
+    allCities: "All cities",
+    categories: "Categories",
+    featured: "Featured cars",
+    viewAll: "View all",
+    seats: "seats",
+    perDay: "/day",
+    bookNow: "Book Now",
+    contactWhatsapp: "Contact on WhatsApp",
+    filters: "Filters",
+    category: "Category",
+    transmission: "Transmission",
+    fuel: "Fuel",
+    price: "Price",
+    all: "All",
+    clearFilters: "Clear filters",
+    noCars: "No cars match your filters",
+    loadingCars: "Loading cars...",
+    retry: "Retry",
+    errorLoad: "Unable to load inventory",
+    availableCities: "Available cities",
+    description: "Description",
+    specifications: "Specifications",
+    year: "Year",
+    booking: "Booking",
+    pickupDate: "Pickup date",
+    returnDate: "Return date",
+    pickupCity: "Pickup city",
+    yourDetails: "Your details",
+    fullName: "Full name",
+    email: "Email",
+    phone: "Phone",
+    tripSummary: "Trip summary",
+    days: "days",
+    day: "day",
+    total: "Total",
+    confirmBooking: "Confirm Booking",
+    processing: "Processing...",
+    bookingConfirmed: "Booking confirmed!",
+    reference: "Reference",
+    finishWhatsapp: "Finish on WhatsApp",
+    backHome: "Back to home",
+    myBookings: "My bookings",
+    noBookings: "You have no bookings yet",
+    startExploring: "Explore cars",
+    status: "Status",
+    pending: "Pending",
+    confirmed: "Confirmed",
+    language: "Language",
+    about: "About",
+    contactUs: "Contact us",
+    callUs: "Call us",
+    fillAllFields: "Please fill all fields",
+    selectDates: "Please select dates",
+    economy: "Economy",
+    compact: "Compact",
+    suv: "SUV",
+    luxury: "Luxury",
+    van: "Van",
+    automatic: "Automatic",
+    manual: "Manual",
+    essence: "Petrol",
+    diesel: "Diesel",
+    aboutText:
+      "AIRBCARS is Morocco's leading car rental platform, connecting travelers with trusted rental agencies across the kingdom.",
+  },
+  ar: {
+    appName: "إيربكارز",
+    tagline: "استأجر سيارتك في المغرب",
+    home: "الرئيسية",
+    cars: "السيارات",
+    bookings: "الحجوزات",
+    settings: "الإعدادات",
+    selectCity: "اختر مدينة",
+    allCities: "كل المدن",
+    categories: "الفئات",
+    featured: "سيارات مميزة",
+    viewAll: "عرض الكل",
+    seats: "مقاعد",
+    perDay: "/يوم",
+    bookNow: "احجز الآن",
+    contactWhatsapp: "تواصل عبر واتساب",
+    filters: "تصفية",
+    category: "الفئة",
+    transmission: "ناقل الحركة",
+    fuel: "الوقود",
+    price: "السعر",
+    all: "الكل",
+    clearFilters: "مسح التصفية",
+    noCars: "لا توجد سيارات مطابقة",
+    loadingCars: "جارٍ التحميل...",
+    retry: "إعادة المحاولة",
+    errorLoad: "تعذر تحميل السيارات",
+    availableCities: "المدن المتاحة",
+    description: "الوصف",
+    specifications: "المواصفات",
+    year: "السنة",
+    booking: "الحجز",
+    pickupDate: "تاريخ الاستلام",
+    returnDate: "تاريخ الإرجاع",
+    pickupCity: "مدينة الاستلام",
+    yourDetails: "معلوماتك",
+    fullName: "الاسم الكامل",
+    email: "البريد الإلكتروني",
+    phone: "الهاتف",
+    tripSummary: "ملخص الرحلة",
+    days: "أيام",
+    day: "يوم",
+    total: "المجموع",
+    confirmBooking: "تأكيد الحجز",
+    processing: "جارٍ المعالجة...",
+    bookingConfirmed: "تم تأكيد الحجز!",
+    reference: "المرجع",
+    finishWhatsapp: "إكمال عبر واتساب",
+    backHome: "العودة للرئيسية",
+    myBookings: "حجوزاتي",
+    noBookings: "ليس لديك حجوزات بعد",
+    startExploring: "استكشف السيارات",
+    status: "الحالة",
+    pending: "قيد الانتظار",
+    confirmed: "مؤكد",
+    language: "اللغة",
+    about: "حول",
+    contactUs: "اتصل بنا",
+    callUs: "اتصل بنا",
+    fillAllFields: "يرجى ملء جميع الحقول",
+    selectDates: "يرجى اختيار التواريخ",
+    economy: "اقتصادية",
+    compact: "مدمجة",
+    suv: "دفع رباعي",
+    luxury: "فاخرة",
+    van: "فان",
+    automatic: "أوتوماتيك",
+    manual: "يدوي",
+    essence: "بنزين",
+    diesel: "ديزل",
+    aboutText:
+      "إيربكارز هي المنصة الرائدة لتأجير السيارات في المغرب، تربط المسافرين بوكالات موثوقة في جميع أنحاء المملكة.",
+  },
+};
+
+type I18nContextType = {
+  lang: Lang;
+  isRTL: boolean;
+  t: (key: string) => string;
+  setLang: (l: Lang) => Promise<void>;
+  ready: boolean;
+};
+
+const I18nContext = createContext<I18nContextType>({
+  lang: "fr",
+  isRTL: false,
+  t: (k) => k,
+  setLang: async () => {},
+  ready: false,
+});
+
+const LANG_KEY = "airbcars_lang";
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("fr");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const saved = (await storage.getItem<string>(LANG_KEY, "fr")) as Lang;
+      if (saved && translations[saved]) {
+        setLangState(saved);
+        I18nManager.allowRTL(saved === "ar");
+      }
+      setReady(true);
+    })();
+  }, []);
+
+  const setLang = async (l: Lang) => {
+    setLangState(l);
+    await storage.setItem(LANG_KEY, l);
+    I18nManager.allowRTL(l === "ar");
+  };
+
+  const t = (key: string) => translations[lang][key] ?? key;
+  const isRTL = lang === "ar";
+
+  return (
+    <I18nContext.Provider value={{ lang, isRTL, t, setLang, ready }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export const useI18n = () => useContext(I18nContext);

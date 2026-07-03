@@ -65,6 +65,25 @@ export async function fetchFeaturedCars(): Promise<Car[]> {
   return data.cars || [];
 }
 
+export type Review = {
+  name: string;
+  avatar: string;
+  date: string;
+  rating: number;
+  text: string;
+};
+
+export async function fetchReviews(): Promise<{
+  reviews: Review[];
+  average: number;
+  count: number;
+}> {
+  const res = await fetch(`${BASE}/api/reviews`);
+  if (!res.ok) throw new Error("Failed to load reviews");
+  const data = await res.json();
+  return { reviews: data.reviews || [], average: data.average || 5, count: data.count || 0 };
+}
+
 export async function submitContact(payload: {
   name: string;
   email: string;

@@ -27,9 +27,18 @@ AIRBCARS_BASE = AIRBCARS_API_URL.rsplit("/api/", 1)[0]  # https://airbcars.ma
 AIRBCARS_PRICE_URL = f"{AIRBCARS_BASE}/api/get_car_price.php"
 AIRBCARS_BOOKINGS_URL = f"{AIRBCARS_BASE}/api/bookings.php"
 AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
+AIRBCARS_HOME_URL = f"{AIRBCARS_BASE}/"
+AIRBCARS_EMAIL_URL = f"{AIRBCARS_BASE}/api/email_endpoint.php"
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
 FEATURED_ID_RE = re.compile(r'booking\.php\?id=(\d+)')
+
+# Review parsing (Google reviews rendered on the homepage)
+_REVIEW_NAME_RE = re.compile(r'reviewer-name">(.*?)</div>', re.S)
+_REVIEW_AVATAR_RE = re.compile(r'avatar" src="(.*?)"')
+_REVIEW_DATE_RE = re.compile(r'<span>•\s*(.*?)</span>', re.S)
+_REVIEW_TEXT_RE = re.compile(r'review-text">\s*(.*?)\s*</div>', re.S)
+_reviews_cache: dict = {"items": [], "ts": 0.0}
 
 # Simple in-memory cache for featured car ids scraped from the homepage.
 _featured_cache: dict = {"ids": [], "ts": 0.0}
@@ -127,6 +136,44 @@ async def get_featured_cars():
     return {"success": True, "cars": featured}
 
 
+@api_router.get("/reviews")
+async def get_reviews():
+    """Google reviews scraped from the airbcars.ma homepage (social proof)."""
+    def _scrape():
+        now = time.time()
+        if _reviews_cache["items"] and now - _reviews_cache["ts"] < 1800:
+            return _reviews_cache["items"]
+        html = requests.get(AIRBCARS_HOME_URL, timeout=20).text
+        blocks = html.split('<div class="review-card"')[1:]
+        items = []
+        for b in blocks:
+            name = _REVIEW_NAME_RE.search(b)
+            text = _REVIEW_TEXT_RE.search(b)
+            if not name or not text:
+                continue
+            avatar = _REVIEW_AVATAR_RE.search(b)
+            date = _REVIEW_DATE_RE.search(b)
+            items.append({
+                "name": name.group(1).strip(),
+                "avatar": avatar.group(1) if avatar else "",
+                "date": date.group(1).strip() if date else "",
+                "rating": min(b.count("star-filled"), 5),
+                "text": re.sub(r"\s+", " ", text.group(1)).strip(),
+            })
+        if items:
+            _reviews_cache["items"] = items
+            _reviews_cache["ts"] = now
+        return items
+
+    try:
+        items = await run_in_threadpool(_scrape)
+    except Exception as e:
+        logger.error(f"reviews scrape error: {e}")
+        items = []
+    avg = round(sum(r["rating"] for r in items) / len(items), 1) if items else 5.0
+    return {"success": True, "reviews": items, "average": avg, "count": len(items)}
+
+
 @api_router.post("/contact")
 async def create_contact(contact: ContactCreate):
     record = {
@@ -136,8 +183,28 @@ async def create_contact(contact: ContactCreate):
         "message": contact.message,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    # Forward to the website email endpoint so the team receives it by email.
+    def _forward():
+        try:
+            r = requests.post(
+                AIRBCARS_EMAIL_URL,
+                json={
+                    "type": "contact",
+                    "name": contact.name,
+                    "email": contact.email,
+                    "message": contact.message,
+                },
+                timeout=20,
+            )
+            return r.status_code, (r.json() if r.content else {})
+        except Exception as e:
+            return 0, {"error": str(e)}
+
+    status, resp = await run_in_threadpool(_forward)
+    record["forwarded_status"] = status
+    # Always keep a local copy so nothing is lost if the mail server errors.
     await db.contacts.insert_one({**record})
-    return {"success": True, "message": "Message received"}
+    return {"success": True, "message": "Message received", "forwarded": status == 200}
 
 
 @api_router.get("/cars")

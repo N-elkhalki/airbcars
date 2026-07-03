@@ -235,9 +235,45 @@ class TestContact:
         data = r.json()
         assert data.get("success") is True
         assert "message" in data
+        # UPDATED: verify forwarded key present (may be False when upstream mail server 500s)
+        assert "forwarded" in data
+        assert isinstance(data["forwarded"], bool)
 
     def test_contact_submit_missing_field_returns_422(self, api_client, base_url):
         # Missing 'message'
         payload = {"name": "TEST_x", "email": "TEST_x@example.com"}
         r = api_client.post(f"{base_url}/api/contact", json=payload)
         assert r.status_code == 422
+
+
+# --- NEW: /api/reviews (Google reviews scraped from airbcars.ma homepage) ---
+class TestReviews:
+    def test_reviews_success_shape(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/reviews")
+        assert r.status_code == 200, r.text[:300]
+        data = r.json()
+        assert data.get("success") is True
+        assert isinstance(data.get("reviews"), list)
+        assert isinstance(data.get("count"), int)
+        assert isinstance(data.get("average"), (int, float))
+
+    def test_reviews_count_and_average(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/reviews")
+        assert r.status_code == 200
+        data = r.json()
+        # Expected: count=35 and average=5.0 per problem statement
+        assert data["count"] == 35, f"expected 35 reviews, got {data['count']}"
+        assert data["average"] == 5.0, f"expected average 5.0, got {data['average']}"
+        assert len(data["reviews"]) == 35
+
+    def test_reviews_fields_non_empty(self, api_client, base_url):
+        r = api_client.get(f"{base_url}/api/reviews")
+        assert r.status_code == 200
+        for rev in r.json().get("reviews", []):
+            assert rev.get("name"), "review name empty"
+            assert rev.get("text"), "review text empty"
+            assert isinstance(rev.get("rating"), int)
+            assert 0 <= rev["rating"] <= 5
+            # avatar and date fields exist even if empty
+            assert "avatar" in rev
+            assert "date" in rev

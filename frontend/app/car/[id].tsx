@@ -16,6 +16,7 @@ import { colors, spacing, radius, shadow, WHATSAPP_PHONE } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
 import { fetchCarDetails, CarDetails } from "@/src/api";
 import { AppText, Button, Loading, ErrorState, Spec } from "@/src/components/ui";
+import { Reviews } from "@/src/components/Reviews";
 
 const { width } = Dimensions.get("window");
 
@@ -160,6 +161,10 @@ export default function CarDetailsScreen() {
               </AppText>
             </>
           ) : null}
+
+          <View style={{ marginTop: spacing.xl }}>
+            <Reviews />
+          </View>
         </View>
       </ScrollView>
 

@@ -34,6 +34,8 @@ CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
 FEATURED_ID_RE = re.compile(r'booking\.php\?id=(\d+)')
 STATUS_RE = re.compile(r'info-label">Status:</span>\s*<span[^>]*>\s*([A-Za-z]+)\s*</span>', re.S)
+INFO_PAIR_RE = re.compile(r'info-label">(.*?)</span>\s*<span[^>]*>(.*?)</span>', re.S)
+TAG_RE = re.compile(r'<[^>]+>')
 
 # Review parsing (Google reviews rendered on the homepage)
 _REVIEW_NAME_RE = re.compile(r'reviewer-name">(.*?)</div>', re.S)
@@ -174,6 +176,77 @@ async def get_reviews():
         items = []
     avg = round(sum(r["rating"] for r in items) / len(items), 1) if items else 5.0
     return {"success": True, "reviews": items, "average": avg, "count": len(items)}
+
+
+@api_router.get("/booking-lookup")
+async def booking_lookup(booking_number: str, pin_code: str):
+    """Imports a reservation made elsewhere (website/WhatsApp) by reading the
+    full confirmation page (validated by booking_number + pin_code)."""
+    def _fetch():
+        r = requests.get(
+            AIRBCARS_CONFIRM_URL,
+            params={"booking_number": booking_number, "pin_code": pin_code},
+            timeout=20,
+            allow_redirects=False,
+        )
+        if r.status_code != 200:
+            return None
+        info = {}
+        for label, val in INFO_PAIR_RE.findall(r.text):
+            key = TAG_RE.sub("", label).strip().rstrip(":").lower()
+            value = re.sub(r"\s+", " ", TAG_RE.sub("", val)).strip()
+            info[key] = value
+        return info or None
+
+    try:
+        info = await run_in_threadpool(_fetch)
+    except Exception as e:
+        logger.error(f"booking-lookup error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch booking")
+    if not info or not info.get("booking number"):
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    car_name = info.get("car", "")
+    total_raw = info.get("total amount", "").replace("€", "").replace(",", "").strip()
+    try:
+        total = float(total_raw) if total_raw else None
+    except ValueError:
+        total = None
+
+    # Best-effort: match the car in the catalog to get an image + car_id.
+    car_id = ""
+    car_image = ""
+    try:
+        catalog = await run_in_threadpool(
+            _upstream_get, {"action": "get_cars", "page": 1, "limit": 200}
+        )
+        norm = car_name.replace(" ", "").lower()
+        for c in catalog.get("cars", []):
+            cn = c.get("name", "").replace(" ", "").lower()
+            if norm and (cn == norm or norm in cn or cn.startswith(norm)):
+                car_id = c.get("id", "")
+                car_image = c.get("image_url", "")
+                break
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "booking": {
+            "reference": info.get("booking number", ""),
+            "pin_code": info.get("pin code", ""),
+            "customer_name": info.get("customer name", ""),
+            "customer_phone": info.get("phone number", ""),
+            "car_name": car_name,
+            "car_id": car_id,
+            "car_image": car_image,
+            "pickup_date": info.get("pickup date", ""),
+            "return_date": info.get("return date", ""),
+            "pickup_city": info.get("pickup city", ""),
+            "total_price": total,
+            "status": info.get("status", "pending").lower(),
+        },
+    }
 
 
 @api_router.get("/booking-status")

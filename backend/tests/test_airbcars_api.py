@@ -301,6 +301,40 @@ class TestBookingStatus:
         assert sdata.get("status") in ("pending", "confirmed", "completed", "cancelled"), sdata
 
 
+# --- NEW: /api/booking-lookup (import a reservation made on website/WhatsApp) ---
+class TestBookingLookup:
+    def test_booking_lookup_known_good(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/booking-lookup",
+            params={"booking_number": "ABC931979", "pin_code": "364268"},
+        )
+        # Should be 200 with full booking or 404 if upstream removed it
+        assert r.status_code in (200, 404), r.text[:300]
+        if r.status_code == 200:
+            data = r.json()
+            assert data.get("success") is True
+            b = data.get("booking")
+            assert b is not None
+            assert b.get("reference") == "ABC931979"
+            assert b.get("pin_code") == "364268"
+            # car matched from catalog
+            assert b.get("car_id") == "313", f"expected car_id=313, got {b.get('car_id')}"
+            assert b.get("car_image"), "car_image should be non-empty"
+            assert b.get("car_name"), "car_name should be present"
+            assert b.get("customer_name"), "customer_name should be present"
+            assert b.get("pickup_date")
+            assert b.get("return_date")
+            assert b.get("pickup_city")
+            assert b.get("status") in ("pending", "confirmed", "completed", "cancelled")
+
+    def test_booking_lookup_invalid_returns_404(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/booking-lookup",
+            params={"booking_number": "INVALID999", "pin_code": "000000"},
+        )
+        assert r.status_code == 404
+
+
 # --- NEW: /api/reviews (Google reviews scraped from airbcars.ma homepage) ---
 class TestReviews:
     def test_reviews_success_shape(self, api_client, base_url):

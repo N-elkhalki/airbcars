@@ -82,6 +82,21 @@ export const CITIES = [
   "Tangier",
 ];
 
+// Representative city photos for the visual city selector.
+export const CITY_IMAGES: Record<string, string> = {
+  Agadir:
+    "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=600&q=80",
+  Casablanca:
+    "https://images.unsplash.com/photo-1577147443647-81856d5151af?w=600&q=80",
+  Fes: "https://images.unsplash.com/photo-1539020140153-e479b8c22e70?w=600&q=80",
+  Marrakech:
+    "https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=600&q=80",
+  Rabat:
+    "https://images.unsplash.com/photo-1531761535209-180857e963b9?w=600&q=80",
+  Tangier:
+    "https://images.unsplash.com/photo-1553913861-c0fddf2619ee?w=600&q=80",
+};
+
 export const CATEGORIES = ["economy", "compact", "suv", "luxury", "van"];
 export const TRANSMISSIONS = ["automatic", "manual"];
 export const FUELS = ["essence", "diesel"];

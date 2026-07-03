@@ -67,9 +67,21 @@ export default function BookingsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
-      <AppText size="2xl" weight="bold" style={styles.title}>
-        {t("myBookings")}
-      </AppText>
+      <View style={styles.titleRow}>
+        <AppText size="2xl" weight="bold">
+          {t("myBookings")}
+        </AppText>
+        <Pressable
+          testID="manage-reservation-btn"
+          onPress={() => router.push("/manage-reservation")}
+          style={styles.manageBtn}
+        >
+          <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
+          <AppText size="sm" weight="medium" color={colors.brand}>
+            {t("manageReservation")}
+          </AppText>
+        </Pressable>
+      </View>
 
       {bookings.length === 0 ? (
         <View style={styles.empty}>
@@ -85,6 +97,15 @@ export default function BookingsScreen() {
             testID="explore-cars-btn"
             style={{ paddingHorizontal: spacing["2xl"] }}
           />
+          <Pressable
+            testID="have-reservation-btn"
+            onPress={() => router.push("/manage-reservation")}
+            style={{ marginTop: spacing.lg }}
+          >
+            <AppText weight="medium" color={colors.brand}>
+              {t("haveReservation")}
+            </AppText>
+          </Pressable>
         </View>
       ) : (
         <FlatList
@@ -155,6 +176,22 @@ export default function BookingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   title: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  manageBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.brandTertiary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   emptyIcon: {
     width: 88,

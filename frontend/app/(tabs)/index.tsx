@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, spacing, radius, CITIES, CATEGORIES } from "@/src/theme";
+import { colors, spacing, radius, CITIES, CATEGORIES, CITY_IMAGES } from "@/src/theme";
 import { useI18n } from "@/src/i18n";
 import { fetchFeaturedCars, Car } from "@/src/api";
 import { AppText, CarCard, Chip, Loading, ErrorState } from "@/src/components/ui";
@@ -114,10 +114,29 @@ export default function HomeScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
+          contentContainerStyle={styles.cityRow}
         >
           {CITIES.map((c) => (
-            <Chip key={c} label={c} onPress={() => goCity(c)} testID={`city-${c}`} />
+            <Pressable
+              key={c}
+              testID={`city-${c}`}
+              onPress={() => goCity(c)}
+              style={styles.cityCard}
+            >
+              <Image
+                source={{ uri: CITY_IMAGES[c] }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={200}
+              />
+              <LinearGradient
+                colors={["transparent", "rgba(20,21,20,0.75)"]}
+                style={StyleSheet.absoluteFill}
+              />
+              <AppText weight="semibold" color="#fff" style={styles.cityLabel}>
+                {c}
+              </AppText>
+            </Pressable>
           ))}
         </ScrollView>
       </View>
@@ -205,6 +224,21 @@ const styles = StyleSheet.create({
   chipRow: {
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
+  },
+  cityRow: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  cityCard: {
+    width: 130,
+    height: 90,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+    backgroundColor: colors.surfaceTertiary,
+  },
+  cityLabel: {
+    padding: spacing.md,
   },
   catCard: {
     width: 96,

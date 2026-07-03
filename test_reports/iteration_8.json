@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 8 fully verified the two NEW features (Manage Reservation flow + Home city image cards) plus full regression. Backend pytest: 26/26 PASS including 2 new tests for /api/booking-lookup (known-good ABC931979/364268 returns success with reference/pin/car_id=313/car_image non-empty/customer_name/pickup_city/status; invalid ref/pin returns 404). Regression: all 24 previously-green tests (cars listing/filters/pagination, car details + franchise_fee, car-price 3d/5d supplement, POST /api/bookings via real CSRF flow, /api/booking-status incl. fresh booking end-to-end, /api/contact, /api/featured-cars, /api/reviews) all still PASS. Frontend (mobile 375x667): App boots without red screen; only cosmetic RN-Web deprecation warnings persist (shadow*, props.pointerEvents, expo-notifications web push token) - none crash the bundle. Home 'Choisir une ville' now renders image-backed city cards (city-Agadir, city-Casablanca, city-Marrakech, city-Fes all present with photo+gradient overlay+white label); tapping city-Agadir navigates to /cars?city=Agadir. Bookings tab: manage-reservation-btn present top-right AND have-reservation-btn present in empty state - both open /manage-reservation. Manage screen has manage-reference + manage-pin inputs + manage-submit-btn. Invalid input (INVALID999/000000) surfaces manage-error 'Reservation introuvable. Verifiez le numero et le code PIN.'. Valid ABC931979/364268 successfully imports and navigates to /booking-detail/<localId> showing Renault Clio5 image, 'En attente' badge, reference ABC931979, PIN 364268, customer 'App Test', +212 612345678, Oct 10 2026, contact-whatsapp CTA present. Back returns to bookings with 1 card. Duplicate import of same ref shows manage-error 'Cette reservation est deja dans l'application.' as expected. All acceptance criteria met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN-Web deprecation warnings", "issue": "Non-blocking console warnings persist: 'shadow*' style props deprecated (use boxShadow) and 'props.pointerEvents' deprecated (use style.pointerEvents). Emitted from theme shadow.* usages. Cosmetic only, no functional impact. Reference: /app/frontend/src/theme.ts (shadow.card / shadow.float used across screens)"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_airbcars_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py /api/booking-lookup: scrapes booking-confirmation.php with allow_redirects=False, parses INFO_PAIR_RE label/value pairs, then fuzzy-matches car catalog by normalized name (norm==cn OR norm in cn OR cn.startswith(norm)) - correctly handles catalog names that include the year suffix (verified: 'Renault Clio5 2025' matches info 'Renault Clio5'). Returns 404 if info empty or no booking number. total_amount parsing strips euro/comma safely.",
+    "manage-reservation.tsx correctly gates on empty ref/pin, checks duplicate via getBookings before calling lookupBooking, and router.replace('/booking-detail/<id>') so back button skips the modal. addBooking persists all required fields (car_image, customer_name, customer_phone, total_price).",
+    "bookings.tsx exposes manage-reservation-btn in header AND have-reservation-btn in empty state, both routing to /manage-reservation. Empty state UX is clean.",
+    "index.tsx city cards use expo-image + LinearGradient overlay + absolute-positioned Text label. testID='city-<name>' correctly renders as data-testid on web (verified all 4). Fixed 130x90 dimensions ensure horizontal scroll works on mobile.",
+    "theme.ts CITY_IMAGES map must exist for each CITIES entry - verified indirectly via visible photos on Agadir/Casablanca/Marrakech/Fes in screenshot."
+  ],
+  "updated_files": ["/app/backend/tests/test_airbcars_api.py"],
+  "success_rate": {"backend": "100% (26/26 pytest passing, +2 new booking-lookup tests)", "frontend": "100% - all NEW flows verified end-to-end: city image cards -> filtered cars, manage-reservation-btn -> lookup screen -> valid import -> booking-detail navigation, invalid input error, duplicate import error, plus full regression from iter 7 intact"},
+  "seed_data_creation": "No new upstream bookings created in this iteration (leveraged the existing ABC931979/364268 sample). Backend pytest run still creates two real upstream bookings (TEST_ prefixed) as part of TestBookings + TestBookingStatus.test_booking_status_end_to_end_with_fresh_booking.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://carrent-mobile-1.preview.emergentagent.com. New testIDs: manage-reservation-btn (bookings header), have-reservation-btn (bookings empty state), manage-back-btn/manage-reference/manage-pin/manage-submit-btn/manage-error (/manage-reservation route), city-<CityName> (home city cards). Sample lookup credentials: booking_number=ABC931979 pin_code=364268 -> car_id=313, customer 'App Test', +212 612345678, Fes/Casablanca dates Oct 2026. Only cosmetic RN-Web warnings remain; no critical issues detected. All 26 pytest tests green, entire manage flow works end-to-end.",
+  "rca_of_issue": "N/A - no bugs surfaced. Both new features (Manage Reservation import flow + Home image-backed city selector) satisfy all acceptance criteria."
+}

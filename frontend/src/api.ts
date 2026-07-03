@@ -100,6 +100,35 @@ export async function fetchBookingStatus(
   }
 }
 
+export type LookedUpBooking = {
+  reference: string;
+  pin_code: string;
+  customer_name: string;
+  customer_phone: string;
+  car_name: string;
+  car_id: string;
+  car_image: string;
+  pickup_date: string;
+  return_date: string;
+  pickup_city: string;
+  total_price: number | null;
+  status: string;
+};
+
+export async function lookupBooking(
+  bookingNumber: string,
+  pinCode: string,
+): Promise<LookedUpBooking> {
+  const res = await fetch(
+    `${BASE}/api/booking-lookup?booking_number=${encodeURIComponent(bookingNumber)}&pin_code=${encodeURIComponent(pinCode)}`,
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.detail || "Booking not found");
+  }
+  return data.booking;
+}
+
 export async function submitContact(payload: {
   name: string;
   email: string;

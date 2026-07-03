@@ -84,6 +84,22 @@ export async function fetchReviews(): Promise<{
   return { reviews: data.reviews || [], average: data.average || 5, count: data.count || 0 };
 }
 
+export async function fetchBookingStatus(
+  bookingNumber: string,
+  pinCode: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${BASE}/api/booking-status?booking_number=${encodeURIComponent(bookingNumber)}&pin_code=${encodeURIComponent(pinCode)}`,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.status || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitContact(payload: {
   name: string;
   email: string;

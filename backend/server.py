@@ -29,9 +29,11 @@ AIRBCARS_BOOKINGS_URL = f"{AIRBCARS_BASE}/api/bookings.php"
 AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
 AIRBCARS_HOME_URL = f"{AIRBCARS_BASE}/"
 AIRBCARS_EMAIL_URL = f"{AIRBCARS_BASE}/api/email_endpoint.php"
+AIRBCARS_CONFIRM_URL = f"{AIRBCARS_BASE}/booking-confirmation.php"
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
 FEATURED_ID_RE = re.compile(r'booking\.php\?id=(\d+)')
+STATUS_RE = re.compile(r'info-label">Status:</span>\s*<span[^>]*>\s*([A-Za-z]+)\s*</span>', re.S)
 
 # Review parsing (Google reviews rendered on the homepage)
 _REVIEW_NAME_RE = re.compile(r'reviewer-name">(.*?)</div>', re.S)
@@ -172,6 +174,32 @@ async def get_reviews():
         items = []
     avg = round(sum(r["rating"] for r in items) / len(items), 1) if items else 5.0
     return {"success": True, "reviews": items, "average": avg, "count": len(items)}
+
+
+@api_router.get("/booking-status")
+async def booking_status(booking_number: str, pin_code: str):
+    """Reads the live reservation status from the website's confirmation page
+    (validated by booking_number + pin_code)."""
+    def _fetch():
+        r = requests.get(
+            AIRBCARS_CONFIRM_URL,
+            params={"booking_number": booking_number, "pin_code": pin_code},
+            timeout=20,
+            allow_redirects=False,
+        )
+        if r.status_code != 200:
+            return None
+        m = STATUS_RE.search(r.text)
+        return m.group(1).strip().lower() if m else None
+
+    try:
+        status = await run_in_threadpool(_fetch)
+    except Exception as e:
+        logger.error(f"booking-status error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch status")
+    if status is None:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return {"success": True, "status": status}
 
 
 @api_router.post("/contact")

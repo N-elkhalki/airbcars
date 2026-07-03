@@ -246,6 +246,61 @@ class TestContact:
         assert r.status_code == 422
 
 
+# --- NEW: /api/booking-status (live status from booking-confirmation.php) ---
+class TestBookingStatus:
+    def test_booking_status_known_good(self, api_client, base_url):
+        # Uses a booking (booking_number + pin_code) validated during this iteration.
+        r = api_client.get(
+            f"{base_url}/api/booking-status",
+            params={"booking_number": "ABC931979", "pin_code": "364268"},
+        )
+        # If the known booking still exists upstream, should be 200 with a status.
+        # If upstream removed it, we accept 404 but not 500.
+        assert r.status_code in (200, 404), r.text[:300]
+        if r.status_code == 200:
+            data = r.json()
+            assert data.get("success") is True
+            assert isinstance(data.get("status"), str) and data["status"]
+
+    def test_booking_status_invalid_returns_404(self, api_client, base_url):
+        r = api_client.get(
+            f"{base_url}/api/booking-status",
+            params={"booking_number": "INVALID000", "pin_code": "000000"},
+        )
+        assert r.status_code == 404
+
+    def test_booking_status_end_to_end_with_fresh_booking(self, api_client, base_url):
+        # Create a fresh booking and immediately query its status
+        pickup = (date.today() + timedelta(days=21)).isoformat()
+        ret = (date.today() + timedelta(days=24)).isoformat()
+        payload = {
+            "car_id": "313",
+            "car_name": "TEST_Renault Clio5 2025",
+            "first_name": "TEST",
+            "last_name": "StatusFlow",
+            "country_code": "+212",
+            "whatsapp": "600000001",
+            "pickup_date": pickup,
+            "return_date": ret,
+            "pickup_city": "Fes",
+            "payment_method": "cash",
+        }
+        cr = api_client.post(f"{base_url}/api/bookings", json=payload)
+        assert cr.status_code == 200, cr.text[:300]
+        cd = cr.json()
+        bn, pin = cd.get("booking_number"), cd.get("pin_code")
+        assert bn and pin, f"missing booking creds: {cd}"
+
+        sr = api_client.get(
+            f"{base_url}/api/booking-status",
+            params={"booking_number": bn, "pin_code": pin},
+        )
+        assert sr.status_code == 200, sr.text[:300]
+        sdata = sr.json()
+        assert sdata.get("success") is True
+        assert sdata.get("status") in ("pending", "confirmed", "completed", "cancelled"), sdata
+
+
 # --- NEW: /api/reviews (Google reviews scraped from airbcars.ma homepage) ---
 class TestReviews:
     def test_reviews_success_shape(self, api_client, base_url):

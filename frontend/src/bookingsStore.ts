@@ -31,3 +31,12 @@ export async function addBooking(b: LocalBooking): Promise<void> {
   list.unshift(b);
   await storage.setItem(KEY, JSON.stringify(list));
 }
+
+export async function updateBookingStatus(
+  id: string,
+  status: string,
+): Promise<void> {
+  const list = await getBookings();
+  const next = list.map((b) => (b.id === id ? { ...b, status } : b));
+  await storage.setItem(KEY, JSON.stringify(next));
+}

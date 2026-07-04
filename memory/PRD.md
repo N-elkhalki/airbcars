@@ -47,7 +47,7 @@ User owns airbcars.ma (Morocco car rental marketplace) and wants a mobile app fo
 - `GET /api/booking-lookup?booking_number&pin_code` (imports a full reservation made on website/WhatsApp: parses confirmation page + matches car image from catalog)
 
 ## Known external issue
-- airbcars.ma `api/email_endpoint.php` currently returns HTTP 500 (their server-side mail config). Contact forwarding therefore returns `forwarded:false`; the app still stores every message in Mongo (`db.contacts`) so nothing is lost — deliveries will flow automatically once their mail server is fixed.
+- RESOLVED: email delivery now works via direct SMTP (mail.airbcars.ma:465 SSL, no_reply@airbcars.ma) using credentials from the site's email.php. Contact messages → contact@airbcars.ma; new bookings → notification email. Branded HTML + plain-text fallback. `email_sent:true` confirmed.
 
 ## Backlog / Remaining
 - P1: Confirm/fix email_endpoint delivery (their side) or add Resend for guaranteed email

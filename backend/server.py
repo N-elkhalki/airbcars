@@ -6,7 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 import uuid
 from datetime import datetime, timezone
@@ -172,7 +172,7 @@ class BookingCreate(BaseModel):
 
 class ContactCreate(BaseModel):
     name: str
-    email: str
+    email: EmailStr
     message: str
 
 

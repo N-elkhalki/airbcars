@@ -1,14 +1,14 @@
-"""Focused tests for the new SMTP integration.
+"""Focused tests for the SMTP integration.
 
-Validates that /api/contact behaves gracefully when SMTP auth is rejected
-(provided credentials return 535 from mail.airbcars.ma). The endpoint must:
-  - return 200 with success:true and email_sent (bool)
-  - persist the message to Mongo db.contacts
+Validates that /api/contact ACTUALLY sends an email now that valid SMTP
+credentials are configured (mail.airbcars.ma:465, no_reply@airbcars.ma).
+The endpoint must:
+  - return 200 with success:true, message and email_sent:true
+  - persist the message to Mongo db.contacts with email_sent:true
   - reject payloads missing required fields with 422
 
-Also verifies that /api/bookings SMTP wrapper cannot cause a 500 (best-effort:
-we don't hit real upstream here since airbcars.ma is currently returning 415
-across the board — we only assert the endpoint doesn't 500 due to SMTP).
+Also verifies that /api/bookings SMTP wrapper cannot cause a 500 even if
+mail delivery fails.
 """
 from datetime import date, timedelta
 
@@ -16,27 +16,26 @@ import pytest
 
 
 class TestContactSMTP:
-    def test_contact_returns_success_even_when_smtp_rejects(self, api_client, base_url):
+    def test_contact_returns_success_and_email_sent_true(self, api_client, base_url):
         payload = {
             "name": "TEST_SMTP_User",
             "email": "TEST_smtp@example.com",
-            "message": "TEST_SMTP graceful failure check",
+            "message": "TEST_SMTP real send check",
         }
         r = api_client.post(f"{base_url}/api/contact", json=payload)
-        # Never 500 even though SMTP creds are 535-rejected upstream.
         assert r.status_code == 200, r.text[:300]
         data = r.json()
         assert data.get("success") is True
         assert data.get("message") == "Message received"
         assert "email_sent" in data
         assert isinstance(data["email_sent"], bool)
-        # With the currently-rejected SMTP creds we expect False.
-        assert data["email_sent"] is False, (
-            "SMTP creds unexpectedly accepted — update test expectation "
-            "if the mail server now accepts these credentials."
+        # SMTP creds are now valid — expect an actual send.
+        assert data["email_sent"] is True, (
+            "SMTP creds are supposed to be valid now — email_sent should be True. "
+            "Check /var/log/supervisor/backend.err.log for the send_email error."
         )
 
-    def test_contact_persisted_in_mongo(self, api_client, base_url):
+    def test_contact_persisted_in_mongo_with_email_sent_true(self, api_client, base_url):
         unique_msg = f"TEST_persist_{date.today().isoformat()}"
         payload = {
             "name": "TEST_Persist",
@@ -45,10 +44,18 @@ class TestContactSMTP:
         }
         r = api_client.post(f"{base_url}/api/contact", json=payload)
         assert r.status_code == 200
-        # We can't query Mongo from here without extra deps, but the successful
-        # 200 with structured record shape (email_sent bool) already implies
-        # insert_one completed (would raise otherwise). Additional Mongo check
-        # is performed manually via pymongo in the RCA script.
+        data = r.json()
+        assert data.get("email_sent") is True
+        # Query Mongo directly to confirm persistence with email_sent=True.
+        from pymongo import MongoClient
+        import os
+        client = MongoClient(os.environ.get("MONGO_URL", "mongodb://localhost:27017"))
+        db = client[os.environ.get("DB_NAME", "test_database")]
+        doc = db.contacts.find_one({"message": unique_msg}, sort=[("created_at", -1)])
+        assert doc is not None, "contact not persisted in Mongo"
+        assert doc.get("email_sent") is True
+        assert doc.get("name") == "TEST_Persist"
+        assert doc.get("email") == "TEST_persist@example.com"
 
     def test_contact_missing_message_returns_422(self, api_client, base_url):
         r = api_client.post(

@@ -16,6 +16,7 @@ import time
 import smtplib
 import ssl
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
 
 ROOT_DIR = Path(__file__).parent
@@ -40,6 +41,7 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "")
+SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "AirbCars")
 CONTACT_TO = os.environ.get("CONTACT_TO", SMTP_USER or "")
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
@@ -68,16 +70,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def send_email(subject: str, body: str, to: str = None, reply_to: str = None) -> bool:
-    """Sends an email through the configured SMTP server. Returns True on
-    success. Never raises — email failures must not break the request."""
+def _email_template(title: str, rows: list, intro: str = "") -> str:
+    """Branded HTML email matching the airbcars.ma style (blue header)."""
+    row_html = "".join(
+        f'<tr><td style="padding:8px 0;color:#6b7280;font-size:14px;width:40%;">{k}</td>'
+        f'<td style="padding:8px 0;color:#1f2937;font-size:14px;font-weight:600;">{v}</td></tr>'
+        for k, v in rows
+    )
+    intro_html = f'<p style="color:#4b5563;font-size:15px;line-height:22px;">{intro}</p>' if intro else ""
+    return f"""<!DOCTYPE html><html><body style="margin:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
+<div style="max-width:600px;margin:0 auto;background:#ffffff;">
+  <div style="background:#2563EB;padding:24px;text-align:center;">
+    <h1 style="color:#ffffff;margin:0;font-size:22px;letter-spacing:1px;">AIRBCARS</h1>
+  </div>
+  <div style="padding:24px;">
+    <h2 style="color:#1f2937;font-size:18px;margin:0 0 12px;">{title}</h2>
+    {intro_html}
+    <table style="width:100%;border-collapse:collapse;margin-top:8px;">{row_html}</table>
+  </div>
+  <div style="background:#f3f4f6;padding:16px;text-align:center;color:#9ca3af;font-size:12px;">
+    Contact: contact@airbcars.ma &nbsp;|&nbsp; Support: support@airbcars.ma
+  </div>
+</div></body></html>"""
+
+
+def send_email(
+    subject: str,
+    text_body: str,
+    to: str = None,
+    reply_to: str = None,
+    html_body: str = None,
+) -> bool:
+    """Sends an email through the configured SMTP server (SSL/465, PHPMailer
+    equivalent). Returns True on success. Never raises."""
     if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
         return False
     recipient = to or CONTACT_TO
     try:
-        msg = MIMEText(body, "plain", "utf-8")
+        if html_body:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(text_body, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+        else:
+            msg = MIMEText(text_body, "plain", "utf-8")
         msg["Subject"] = subject
-        msg["From"] = formataddr(("AIRBCARS App", SMTP_FROM))
+        msg["From"] = formataddr((SMTP_FROM_NAME, SMTP_FROM))
         msg["To"] = recipient
         if reply_to:
             msg["Reply-To"] = reply_to
@@ -332,8 +369,13 @@ async def create_contact(contact: ContactCreate):
         f"Email: {contact.email}\n\n"
         f"Message:\n{contact.message}\n"
     )
+    html = _email_template(
+        "Nouveau message de contact",
+        [("Nom", contact.name), ("Email", contact.email), ("Message", contact.message)],
+        intro="Un utilisateur a envoyé un message depuis l'application mobile.",
+    )
     sent = await run_in_threadpool(
-        send_email, subject, body, CONTACT_TO, contact.email
+        send_email, subject, body, CONTACT_TO, contact.email, html
     )
     record["email_sent"] = sent
     await db.contacts.insert_one({**record})
@@ -496,7 +538,19 @@ async def create_booking(booking: BookingCreate):
         f"Du {booking.pickup_date} au {booking.return_date}\n"
         f"Ville: {booking.pickup_city}\n"
     )
-    await run_in_threadpool(send_email, subject, body, CONTACT_TO, None)
+    html = _email_template(
+        "Nouvelle réservation",
+        [
+            ("Réservation", data.get("booking_number", "")),
+            ("Client", f"{booking.first_name} {booking.last_name}"),
+            ("WhatsApp", f"{booking.country_code} {booking.whatsapp}"),
+            ("Voiture", booking.car_name or ""),
+            ("Période", f"{booking.pickup_date} → {booking.return_date}"),
+            ("Ville", booking.pickup_city),
+        ],
+        intro="Une nouvelle réservation a été créée depuis l'application mobile.",
+    )
+    await run_in_threadpool(send_email, subject, body, CONTACT_TO, None, html)
     return data
 
 

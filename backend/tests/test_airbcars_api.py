@@ -235,9 +235,10 @@ class TestContact:
         data = r.json()
         assert data.get("success") is True
         assert "message" in data
-        # UPDATED: verify forwarded key present (may be False when upstream mail server 500s)
-        assert "forwarded" in data
-        assert isinstance(data["forwarded"], bool)
+        # UPDATED: SMTP integration returns email_sent (bool). May be False when
+        # SMTP creds are rejected (535) - that's acceptable, endpoint must not 500.
+        assert "email_sent" in data
+        assert isinstance(data["email_sent"], bool)
 
     def test_contact_submit_missing_field_returns_422(self, api_client, base_url):
         # Missing 'message'

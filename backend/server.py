@@ -13,6 +13,10 @@ from datetime import datetime, timezone
 import requests
 import re
 import time
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.utils import formataddr
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,6 +34,13 @@ AIRBCARS_BOOKING_PAGE = f"{AIRBCARS_BASE}/booking.php"
 AIRBCARS_HOME_URL = f"{AIRBCARS_BASE}/"
 AIRBCARS_EMAIL_URL = f"{AIRBCARS_BASE}/api/email_endpoint.php"
 AIRBCARS_CONFIRM_URL = f"{AIRBCARS_BASE}/booking-confirmation.php"
+
+SMTP_HOST = os.environ.get("SMTP_HOST")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "")
+CONTACT_TO = os.environ.get("CONTACT_TO", SMTP_USER or "")
 CSRF_RE = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 FRANCHISE_RE = re.compile(r'const franchiseFee\s*=\s*([0-9.]+)')
 FEATURED_ID_RE = re.compile(r'booking\.php\?id=(\d+)')
@@ -55,6 +66,36 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def send_email(subject: str, body: str, to: str = None, reply_to: str = None) -> bool:
+    """Sends an email through the configured SMTP server. Returns True on
+    success. Never raises — email failures must not break the request."""
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
+        return False
+    recipient = to or CONTACT_TO
+    try:
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = formataddr(("AIRBCARS App", SMTP_FROM))
+        msg["To"] = recipient
+        if reply_to:
+            msg["Reply-To"] = reply_to
+        ctx = ssl.create_default_context()
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20, context=ctx) as s:
+                s.login(SMTP_USER, SMTP_PASSWORD)
+                s.sendmail(SMTP_FROM, [recipient], msg.as_string())
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+                s.starttls(context=ctx)
+                s.login(SMTP_USER, SMTP_PASSWORD)
+                s.sendmail(SMTP_FROM, [recipient], msg.as_string())
+        return True
+    except Exception as e:
+        logger.error(f"send_email failed: {e}")
+        return False
+
 
 
 # ---------- Helpers to talk to the AIRBCARS upstream API ----------
@@ -284,28 +325,19 @@ async def create_contact(contact: ContactCreate):
         "message": contact.message,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    # Forward to the website email endpoint so the team receives it by email.
-    def _forward():
-        try:
-            r = requests.post(
-                AIRBCARS_EMAIL_URL,
-                json={
-                    "type": "contact",
-                    "name": contact.name,
-                    "email": contact.email,
-                    "message": contact.message,
-                },
-                timeout=20,
-            )
-            return r.status_code, (r.json() if r.content else {})
-        except Exception as e:
-            return 0, {"error": str(e)}
-
-    status, resp = await run_in_threadpool(_forward)
-    record["forwarded_status"] = status
-    # Always keep a local copy so nothing is lost if the mail server errors.
+    # Deliver the message to the business inbox via SMTP.
+    subject = f"[App] Nouveau message de {contact.name}"
+    body = (
+        f"Nom: {contact.name}\n"
+        f"Email: {contact.email}\n\n"
+        f"Message:\n{contact.message}\n"
+    )
+    sent = await run_in_threadpool(
+        send_email, subject, body, CONTACT_TO, contact.email
+    )
+    record["email_sent"] = sent
     await db.contacts.insert_one({**record})
-    return {"success": True, "message": "Message received", "forwarded": status == 200}
+    return {"success": True, "message": "Message received", "email_sent": sent}
 
 
 @api_router.get("/cars")
@@ -453,6 +485,18 @@ async def create_booking(booking: BookingCreate):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.bookings.insert_one({**record})
+
+    # Notify the business of the new reservation.
+    subject = f"[App] Nouvelle réservation {data.get('booking_number', '')}"
+    body = (
+        f"Réservation: {data.get('booking_number', '')}\n"
+        f"Client: {booking.first_name} {booking.last_name}\n"
+        f"WhatsApp: {booking.country_code} {booking.whatsapp}\n"
+        f"Voiture: {booking.car_name} (id {booking.car_id})\n"
+        f"Du {booking.pickup_date} au {booking.return_date}\n"
+        f"Ville: {booking.pickup_city}\n"
+    )
+    await run_in_threadpool(send_email, subject, body, CONTACT_TO, None)
     return data
 
 
